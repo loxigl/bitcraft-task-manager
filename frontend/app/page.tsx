@@ -1,0 +1,447 @@
+"use client"
+
+import { useState } from "react"
+import { TaskDashboard } from "@/components/dashboard/task-dashboard"
+import { UserProfile } from "@/components/profile/user-profile"
+import { AdminPanel } from "@/components/admin/admin-panel"
+import { CreateTaskDialog } from "@/components/tasks/create-task-dialog"
+import { MobileNav } from "@/components/navigation/mobile-nav"
+import { DesktopNav } from "@/components/navigation/desktop-nav"
+import { MyTasks } from "@/components/tasks/my-tasks"
+import { mockTasks, mockUser } from "@/lib/mock-data"
+import { useTaskManagement } from "@/hooks/use-task-management"
+import { useProfessionManagement } from "@/hooks/use-profession-management"
+import {
+  Hammer,
+  FlaskConical,
+  Scissors,
+  Pickaxe,
+  Target,
+  TreePine,
+  Wheat,
+  Fish,
+  Leaf,
+  Shield,
+  Wrench,
+  BookOpen,
+} from "lucide-react"
+
+// Updated profession icons
+const professionIcons = {
+  carpentry: Hammer,
+  farming: Wheat,
+  fishing: Fish,
+  foraging: Leaf,
+  forestry: TreePine,
+  hunting: Target,
+  leatherworking: Shield,
+  masonry: Wrench,
+  mining: Pickaxe,
+  scholar: BookOpen,
+  smithing: FlaskConical,
+  tailoring: Scissors,
+}
+
+const mockTasksOld = [
+  {
+    id: 1,
+    name: "Build Wooden Fortress Gate",
+    professions: ["carpentry", "forestry"],
+    levels: { carpentry: 75, forestry: 60 },
+    deadline: "2024-01-15",
+    status: "open",
+    priority: "high",
+    description:
+      "Construct a massive wooden gate for the guild fortress. Requires master carpentry and quality lumber.",
+    resources: [
+      {
+        name: "Oak Planks",
+        needed: 50,
+        gathered: 12,
+        unit: "pieces",
+        contributors: { "Marcus the Woodsman": 8, "Lyra Moonweaver": 4 },
+      },
+      { name: "Iron Hinges", needed: 8, gathered: 3, unit: "pieces", contributors: { "Elena the Smith": 3 } },
+      { name: "Reinforcement Bars", needed: 12, gathered: 0, unit: "pieces", contributors: {} },
+    ],
+    assignedTo: ["Marcus the Woodsman", "Lyra Moonweaver"],
+    createdBy: "Guild Master Thorin",
+    shipTo: "Fortress Entrance",
+    takeFrom: "Lumber Yard",
+    subtasks: [
+      {
+        id: 1,
+        name: "Harvest Oak Trees",
+        completed: false,
+        assignedTo: ["Marcus the Woodsman"],
+        professions: ["forestry"],
+        levels: { forestry: 60 },
+        dependencies: [],
+        description: "Cut down mature oak trees for quality lumber",
+        shipTo: "Sawmill",
+        takeFrom: "Ancient Forest",
+        resources: [
+          { name: "Oak Logs", needed: 25, gathered: 18, unit: "logs", contributors: { "Marcus the Woodsman": 18 } },
+          { name: "Forestry Tools", needed: 1, gathered: 1, unit: "set", contributors: { "Marcus the Woodsman": 1 } },
+        ],
+        subtasks: [
+          {
+            id: 11,
+            name: "Scout Tree Locations",
+            completed: true,
+            assignedTo: ["Marcus the Woodsman"],
+            professions: ["forestry"],
+            levels: { forestry: 45 },
+            dependencies: [],
+            description: "Identify the best oak trees for harvesting",
+            shipTo: null,
+            takeFrom: null,
+            resources: [
+              {
+                name: "Scouting Reports",
+                needed: 3,
+                gathered: 3,
+                unit: "reports",
+                contributors: { "Marcus the Woodsman": 3 },
+              },
+            ],
+          },
+          {
+            id: 12,
+            name: "Prepare Forestry Tools",
+            completed: false,
+            assignedTo: ["Elena the Smith"],
+            professions: ["smithing"],
+            levels: { smithing: 40 },
+            dependencies: [],
+            description: "Sharpen axes and prepare forestry equipment",
+            shipTo: null,
+            takeFrom: "Tool Storage",
+            resources: [
+              { name: "Sharpened Axes", needed: 3, gathered: 2, unit: "axes", contributors: { "Elena the Smith": 2 } },
+              { name: "Tool Oil", needed: 5, gathered: 5, unit: "bottles", contributors: { "Elena the Smith": 5 } },
+            ],
+          },
+        ],
+      },
+      {
+        id: 2,
+        name: "Process Lumber",
+        completed: false,
+        assignedTo: [],
+        professions: ["carpentry"],
+        levels: { carpentry: 50 },
+        dependencies: [1],
+        description: "Mill the oak logs into usable planks",
+        shipTo: "Workshop",
+        takeFrom: "Sawmill",
+        resources: [{ name: "Milled Planks", needed: 50, gathered: 0, unit: "planks", contributors: {} }],
+      },
+      {
+        id: 3,
+        name: "Craft Gate Framework",
+        completed: false,
+        assignedTo: [],
+        professions: ["carpentry"],
+        levels: { carpentry: 75 },
+        dependencies: [2],
+        description: "Construct the main gate framework",
+        shipTo: "Assembly Area",
+        takeFrom: "Workshop",
+        resources: [
+          { name: "Gate Framework", needed: 1, gathered: 0, unit: "framework", contributors: {} },
+          { name: "Wood Glue", needed: 10, gathered: 0, unit: "bottles", contributors: {} },
+        ],
+      },
+      {
+        id: 4,
+        name: "Install Hardware",
+        completed: false,
+        assignedTo: [],
+        professions: ["smithing", "carpentry"],
+        levels: { smithing: 60, carpentry: 65 },
+        dependencies: [3],
+        description: "Install hinges, locks, and reinforcement hardware",
+        shipTo: "Fortress Entrance",
+        takeFrom: "Assembly Area",
+        resources: [{ name: "Installed Hardware", needed: 1, gathered: 0, unit: "complete", contributors: {} }],
+      },
+    ],
+  },
+  {
+    id: 2,
+    name: "Harvest Festival Feast",
+    professions: ["farming", "fishing", "foraging"],
+    levels: { farming: 50, fishing: 45, foraging: 40 },
+    deadline: "2024-01-20",
+    status: "open",
+    priority: "medium",
+    description: "Prepare ingredients for the guild's harvest festival feast.",
+    resources: [
+      {
+        name: "Fresh Vegetables",
+        needed: 30,
+        gathered: 15,
+        unit: "baskets",
+        contributors: { "Tom the Farmer": 10, "Sarah the Gardener": 5 },
+      },
+      { name: "River Fish", needed: 20, gathered: 8, unit: "fish", contributors: { "Lyra Moonweaver": 8 } },
+      { name: "Wild Herbs", needed: 15, gathered: 12, unit: "bundles", contributors: { "Luna the Forager": 12 } },
+    ],
+    assignedTo: ["Tom the Farmer", "Lyra Moonweaver"],
+    createdBy: "Chef Meredith",
+    shipTo: "Guild Kitchen",
+    takeFrom: "Various Locations",
+    subtasks: [
+      {
+        id: 1,
+        name: "Harvest Vegetables",
+        completed: false,
+        assignedTo: ["Tom the Farmer", "Sarah the Gardener"],
+        professions: ["farming"],
+        levels: { farming: 50 },
+        dependencies: [],
+        description: "Harvest fresh vegetables from guild farms",
+        shipTo: "Storage Cellar",
+        takeFrom: "Guild Farms",
+        resources: [
+          {
+            name: "Carrots",
+            needed: 10,
+            gathered: 7,
+            unit: "bunches",
+            contributors: { "Tom the Farmer": 4, "Sarah the Gardener": 3 },
+          },
+          {
+            name: "Potatoes",
+            needed: 15,
+            gathered: 8,
+            unit: "sacks",
+            contributors: { "Tom the Farmer": 6, "Sarah the Gardener": 2 },
+          },
+          { name: "Onions", needed: 8, gathered: 8, unit: "bunches", contributors: { "Sarah the Gardener": 8 } },
+        ],
+      },
+      {
+        id: 2,
+        name: "Catch Fresh Fish",
+        completed: false,
+        assignedTo: ["Lyra Moonweaver"],
+        professions: ["fishing"],
+        levels: { fishing: 45 },
+        dependencies: [],
+        description: "Fish in the nearby rivers for fresh catch",
+        shipTo: "Ice House",
+        takeFrom: "Silverbrook River",
+        resources: [
+          { name: "Trout", needed: 12, gathered: 5, unit: "fish", contributors: { "Lyra Moonweaver": 5 } },
+          { name: "Salmon", needed: 8, gathered: 3, unit: "fish", contributors: { "Lyra Moonweaver": 3 } },
+        ],
+      },
+      {
+        id: 3,
+        name: "Gather Wild Herbs",
+        completed: false,
+        assignedTo: ["Luna the Forager"],
+        professions: ["foraging"],
+        levels: { foraging: 40 },
+        dependencies: [],
+        description: "Collect wild herbs and seasonings",
+        shipTo: "Herb Storage",
+        takeFrom: "Wildlands",
+        resources: [
+          { name: "Wild Thyme", needed: 5, gathered: 5, unit: "bundles", contributors: { "Luna the Forager": 5 } },
+          {
+            name: "Forest Mushrooms",
+            needed: 10,
+            gathered: 7,
+            unit: "baskets",
+            contributors: { "Luna the Forager": 7 },
+          },
+        ],
+      },
+      {
+        id: 4,
+        name: "Prepare Ingredients",
+        completed: false,
+        assignedTo: [],
+        professions: ["farming"],
+        levels: { farming: 30 },
+        dependencies: [1, 2, 3],
+        description: "Clean and prepare all ingredients for cooking",
+        shipTo: "Guild Kitchen",
+        takeFrom: "Storage Areas",
+        resources: [{ name: "Prepared Ingredients", needed: 1, gathered: 0, unit: "complete", contributors: {} }],
+      },
+    ],
+  },
+  {
+    id: 3,
+    name: "Craft Leather Armor Set",
+    professions: ["leatherworking", "hunting"],
+    levels: { leatherworking: 65, hunting: 55 },
+    deadline: "2024-01-12",
+    status: "taken",
+    priority: "high",
+    description: "Create a complete set of reinforced leather armor for guild warriors.",
+    resources: [
+      { name: "Beast Hide", needed: 8, gathered: 8, unit: "hides", contributors: { "Gareth the Tanner": 8 } },
+      { name: "Leather Strips", needed: 20, gathered: 12, unit: "strips", contributors: { "Gareth the Tanner": 12 } },
+      { name: "Metal Studs", needed: 15, gathered: 6, unit: "studs", contributors: { "Gareth the Tanner": 6 } },
+    ],
+    assignedTo: ["Gareth the Tanner"],
+    createdBy: "Captain Marcus",
+    shipTo: "Armory",
+    takeFrom: "Tanning Workshop",
+    subtasks: [
+      {
+        id: 1,
+        name: "Hunt Wild Beasts",
+        completed: true,
+        assignedTo: ["Gareth the Tanner"],
+        professions: ["hunting"],
+        levels: { hunting: 55 },
+        dependencies: [],
+        description: "Hunt large beasts for quality hides",
+        shipTo: "Tanning Workshop",
+        takeFrom: "Darkwood Forest",
+        resources: [
+          { name: "Beast Hides", needed: 8, gathered: 8, unit: "hides", contributors: { "Gareth the Tanner": 8 } },
+        ],
+      },
+      {
+        id: 2,
+        name: "Tan the Hides",
+        completed: false,
+        assignedTo: ["Gareth the Tanner"],
+        professions: ["leatherworking"],
+        levels: { leatherworking: 60 },
+        dependencies: [1],
+        description: "Process beast hides into workable leather",
+        shipTo: "Crafting Station",
+        takeFrom: "Tanning Workshop",
+        resources: [
+          { name: "Tanned Leather", needed: 8, gathered: 5, unit: "sheets", contributors: { "Gareth the Tanner": 5 } },
+          {
+            name: "Tanning Solution",
+            needed: 10,
+            gathered: 10,
+            unit: "bottles",
+            contributors: { "Gareth the Tanner": 10 },
+          },
+        ],
+      },
+      {
+        id: 3,
+        name: "Cut Armor Pieces",
+        completed: false,
+        assignedTo: [],
+        professions: ["leatherworking"],
+        levels: { leatherworking: 65 },
+        dependencies: [2],
+        description: "Cut leather into individual armor pieces",
+        shipTo: "Assembly Station",
+        takeFrom: "Crafting Station",
+        resources: [{ name: "Armor Pieces", needed: 12, gathered: 0, unit: "pieces", contributors: {} }],
+      },
+      {
+        id: 4,
+        name: "Assemble Armor Set",
+        completed: false,
+        assignedTo: [],
+        professions: ["leatherworking"],
+        levels: { leatherworking: 65 },
+        dependencies: [3],
+        description: "Stitch and assemble the complete armor set",
+        shipTo: "Armory",
+        takeFrom: "Assembly Station",
+        resources: [{ name: "Complete Armor Set", needed: 1, gathered: 0, unit: "set", contributors: {} }],
+      },
+    ],
+  },
+]
+
+const mockUserOld = {
+  name: "Lyra Moonweaver",
+  avatar: "/placeholder.svg?height=100&width=100",
+  level: 67,
+  guild: "BitCraft",
+  professions: {
+    carpentry: { level: 45 },
+    farming: { level: 72 },
+    fishing: { level: 38 },
+    foraging: { level: 55 },
+    forestry: { level: 62 },
+    hunting: { level: 25 },
+    leatherworking: { level: 33 },
+    masonry: { level: 18 },
+    mining: { level: 85 },
+    scholar: { level: 91 },
+    smithing: { level: 67 },
+    tailoring: { level: 54 },
+  },
+  completedTasks: 47,
+  currentTasks: 3,
+  reputation: 2840,
+}
+
+export default function GuildCraftingDashboard() {
+  const [currentView, setCurrentView] = useState("dashboard")
+  const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false)
+  const [editingTask, setEditingTask] = useState(null)
+
+  const { tasks, setTasks, claimTask, claimSubtask, deleteTask, updateResourceContribution } =
+    useTaskManagement(mockTasks)
+
+  const { userProfessions, setUserProfessions, editingProfessions, setEditingProfessions, updateProfessionLevel } =
+    useProfessionManagement(mockUser.professions)
+
+  const sharedProps = {
+    tasks,
+    setTasks,
+    userProfessions,
+    mockUser,
+    claimTask,
+    claimSubtask,
+    deleteTask,
+    updateResourceContribution,
+    setEditingTask,
+    setIsCreateTaskOpen,
+    setCurrentView,
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <div className="container mx-auto p-4 pb-20 md:pb-4">
+        <DesktopNav currentView={currentView} setCurrentView={setCurrentView} />
+
+        {/* Main Content */}
+        {currentView === "dashboard" && <TaskDashboard {...sharedProps} />}
+        {currentView === "profile" && (
+          <UserProfile
+            mockUser={mockUser}
+            userProfessions={userProfessions}
+            editingProfessions={editingProfessions}
+            setEditingProfessions={setEditingProfessions}
+            updateProfessionLevel={updateProfessionLevel}
+            tasks={tasks}
+          />
+        )}
+        {currentView === "admin" && <AdminPanel {...sharedProps} />}
+        {currentView === "my-tasks" && <MyTasks tasks={tasks} mockUser={mockUser} />}
+
+        <CreateTaskDialog
+          isOpen={isCreateTaskOpen}
+          setIsOpen={setIsCreateTaskOpen}
+          editingTask={editingTask}
+          setEditingTask={setEditingTask}
+          tasks={tasks}
+          setTasks={setTasks}
+          userProfessions={userProfessions}
+        />
+
+        <MobileNav currentView={currentView} setCurrentView={setCurrentView} />
+      </div>
+    </div>
+  )
+}

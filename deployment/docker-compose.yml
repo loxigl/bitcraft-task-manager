@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  # MongoDB база данных
+  mongo:
+    image: mongo:7.0
+    container_name: bitcraft_mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: bitcraft_password_2024
+      MONGO_INITDB_DATABASE: bitcraft_task_manager
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - bitcraft_network
+
+  # Backend API
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: bitcraft_backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGODB_URI: mongodb://root:bitcraft_password_2024@mongo:27017/bitcraft_task_manager?authSource=admin
+      JWT_SECRET: bitcraft_production_secret_2024_very_secure_key
+      JWT_EXPIRE: 7d
+      CORS_ORIGIN: http://localhost:3000
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mongo
+    volumes:
+      - backend_logs:/app/logs
+    networks:
+      - bitcraft_network
+    command: sh -c "sleep 10 && node dist/index.js"
+
+  # Frontend приложение
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: bitcraft_frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://localhost:5000/api
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - bitcraft_network
+
+  # Nginx reverse proxy (опционально)
+  nginx:
+    image: nginx:alpine
+    container_name: bitcraft_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - bitcraft_network
+
+volumes:
+  mongo_data:
+    driver: local
+  backend_logs:
+    driver: local
+
+networks:
+  bitcraft_network:
+    driver: bridge 
