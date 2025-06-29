@@ -1,286 +1,224 @@
-# BitCraft Task Manager - Деплой
+# BitCraft Task Manager
 
-Полная инструкция по развертыванию приложения BitCraft Task Manager с помощью Docker.
+A modern guild task management system built with Next.js, Node.js, Express, MongoDB, and Docker.
 
-## 🚀 Быстрый старт
+## Features
 
-1. **Клонируйте репозиторий и перейдите в папку deployment:**
+- 🔐 **Authentication System** - Email/password based user registration and login with JWT tokens
+- 📋 **Task Management** - Create, assign, and track guild tasks with detailed progress tracking
+- 👥 **User Profiles** - Character profiles with profession levels and statistics
+- 🏗️ **Resource Tracking** - Track resource contributions and requirements for tasks
+- 📱 **Responsive Design** - Modern UI that works on desktop and mobile devices
+- 🐳 **Docker Support** - Easy deployment with Docker Compose for both development and production
+
+## Quick Start
+
+### Prerequisites
+
+- Docker and Docker Compose
+- Make (optional, for convenience commands)
+
+### Development Environment
+
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd bitcraft_task_manager
+   ```
+
+2. **Start development environment:**
    ```bash
    cd deployment
+   make dev
    ```
-
-2. **Запустите все сервисы:**
+   
+   Or manually:
    ```bash
-   docker-compose up -d
+   docker-compose -f docker-compose.dev.yml up --build
    ```
 
-3. **Проверьте статус сервисов:**
-   ```bash
-   docker-compose ps
-   ```
-
-4. **Инициализируйте базу данных тестовыми данными:**
-   ```bash
-   docker-compose exec backend npm run seed
-   ```
-
-5. **Откройте приложение:**
-   - Frontend: http://localhost:3000
+3. **Access the application:**
+   - Frontend: http://localhost
    - Backend API: http://localhost:5000
-   - Nginx (reverse proxy): http://localhost:80
+   - MongoDB: mongodb://localhost:27017
 
-## 📋 Требования
+### Production Environment
 
-- Docker (версия 20.0+)
-- Docker Compose (версия 2.0+)
-- Минимум 2GB RAM
-- Минимум 5GB свободного места
+1. **Start production environment:**
+   ```bash
+   cd deployment
+   make prod
+   ```
+   
+   Or manually:
+   ```bash
+   docker-compose up --build -d
+   ```
 
-## 🏗️ Архитектура
+## Available Commands
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│     Nginx       │    │    Frontend     │    │     Backend     │
-│   (Port 80)     │◄──►│   (Port 3000)   │◄──►│   (Port 5000)   │
-│  Reverse Proxy  │    │    Next.js      │    │    Express      │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                                                       │
-                                                       ▼
-                                              ┌─────────────────┐
-                                              │     MongoDB     │
-                                              │   (Port 27017)  │
-                                              │    Database     │
-                                              └─────────────────┘
-```
+The project includes a Makefile with convenient commands:
 
-## 🔧 Конфигурация
+### Development
+- `make dev` - Start development environment with hot reloading
+- `make dev-detached` - Start development environment in background
+- `make dev-logs` - Show development logs
+- `make dev-stop` - Stop development environment
+- `make dev-clean` - Clean development environment (removes volumes)
 
-### Переменные окружения
+### Production
+- `make prod` - Start production environment
+- `make prod-detached` - Start production environment in background
+- `make prod-logs` - Show production logs
+- `make prod-stop` - Stop production environment
+- `make prod-clean` - Clean production environment (removes volumes)
 
-#### Backend (.env)
+### General
+- `make stop` - Stop all environments
+- `make clean` - Clean all Docker resources
+- `make build` - Build all images
+- `make help` - Show all available commands
+
+### Database
+- `make seed-dev` - Seed development database with sample data
+- `make seed-prod` - Seed production database with sample data
+
+## Architecture
+
+### Backend (Node.js/Express/MongoDB)
+- **Authentication**: JWT-based authentication with bcrypt password hashing
+- **API**: RESTful API with comprehensive validation using express-validator
+- **Database**: MongoDB with Mongoose ODM
+- **Security**: Helmet, CORS, and other security middleware
+
+### Frontend (Next.js/React)
+- **Framework**: Next.js 15 with TypeScript
+- **UI Components**: Custom components with Tailwind CSS
+- **State Management**: React hooks and context
+- **Authentication**: JWT token storage and management
+
+### DevOps
+- **Containerization**: Docker with multi-stage builds for production optimization
+- **Proxy**: Nginx reverse proxy for routing
+- **Development**: Hot reloading for both frontend and backend
+- **Debugging**: Debug ports exposed for backend debugging
+
+## Environment Variables
+
+### Backend (.env)
 ```env
-NODE_ENV=production
+NODE_ENV=development
 PORT=5000
-MONGODB_URI=mongodb://root:bitcraft_password_2024@mongo:27017/bitcraft_task_manager?authSource=admin
-JWT_SECRET=bitcraft_production_secret_2024_very_secure_key
+MONGODB_URI=mongodb://mongo:27017/bitcraft_dev
+JWT_SECRET=your_jwt_secret_key_change_in_production
 JWT_EXPIRE=7d
 CORS_ORIGIN=http://localhost:3000
 ```
 
-#### Frontend (.env.local)
+### Frontend (.env.local)
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:5000/api
+NEXT_PUBLIC_API_URL=/api
 ```
 
-### Порты
+## API Endpoints
 
-| Сервис | Внутренний порт | Внешний порт | Описание |
-|--------|----------------|-------------|----------|
-| Nginx | 80/443 | 80/443 | Reverse proxy, статика |
-| Frontend | 3000 | 3000 | Next.js приложение |
-| Backend | 5000 | 5000 | Express API |
-| MongoDB | 27017 | 27017 | База данных |
+### Authentication
+- `POST /api/auth/register` - User registration
+- `POST /api/auth/login` - User login
+- `GET /api/auth/me` - Get current user (requires auth)
 
-## 📊 API Endpoints
+### Users
+- `GET /api/users` - Get all users
+- `GET /api/users/:id` - Get user by ID
+- `GET /api/users/name/:name` - Get user by name
+- `POST /api/users` - Create new user
+- `PUT /api/users/:id/profile` - Update user profile
 
-### Задачи (Tasks)
-- `GET /api/tasks` - Получить все задачи
-- `GET /api/tasks/:id` - Получить задачу по ID
-- `POST /api/tasks` - Создать новую задачу
-- `POST /api/tasks/:id/claim` - Назначить/снять пользователя
-- `PUT /api/tasks/:id/resources/:name` - Обновить ресурс
-- `DELETE /api/tasks/:id` - Удалить задачу
+### Tasks
+- `GET /api/tasks` - Get all tasks with pagination
+- `GET /api/tasks/:id` - Get task by ID
+- `POST /api/tasks` - Create new task
+- `POST /api/tasks/:id/claim` - Claim a task
+- `PUT /api/tasks/:id/resources/:resourceName` - Update resource contribution
+- `DELETE /api/tasks/:id` - Delete task
 
-### Пользователи (Users)
-- `GET /api/users` - Получить всех пользователей
-- `GET /api/users/:id` - Получить пользователя по ID
-- `GET /api/users/name/:name` - Получить пользователя по имени
-- `POST /api/users` - Создать пользователя
-- `PUT /api/users/:id/profile` - Обновить профиль
-- `PUT /api/users/:id/professions/:profession` - Обновить уровень профессии
+## Development
 
-## 🛠️ Команды Docker
+### Hot Reloading
 
-### Управление контейнерами
+Both frontend and backend support hot reloading in development mode:
 
+- **Frontend**: Next.js dev server automatically reloads on file changes
+- **Backend**: ts-node-dev automatically restarts the server on TypeScript file changes
+
+### Debugging
+
+Backend debugging is available on port 9229 in development mode. You can connect your IDE debugger to this port.
+
+### File Structure
+
+```
+bitcraft_task_manager/
+├── backend/                 # Node.js/Express backend
+│   ├── src/
+│   │   ├── controllers/     # API controllers
+│   │   ├── models/         # Mongoose models
+│   │   ├── routes/         # Express routes
+│   │   ├── middleware/     # Custom middleware
+│   │   └── types/          # TypeScript type definitions
+│   ├── Dockerfile          # Production Docker image
+│   └── Dockerfile.dev      # Development Docker image
+├── frontend/               # Next.js frontend
+│   ├── app/                # App router pages
+│   ├── components/         # React components
+│   ├── lib/                # Utilities and API client
+│   ├── hooks/              # Custom React hooks
+│   ├── contexts/           # React contexts
+│   ├── Dockerfile          # Production Docker image
+│   └── Dockerfile.dev      # Development Docker image
+└── deployment/             # Docker Compose configurations
+    ├── docker-compose.yml      # Production configuration
+    ├── docker-compose.dev.yml  # Development configuration
+    ├── nginx.conf              # Nginx configuration
+    └── Makefile                # Convenience commands
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Port conflicts**: Make sure ports 80, 3000, 5000, and 27017 are available
+2. **Permission errors**: On Linux, you might need to run Docker commands with `sudo`
+3. **Database connection**: Ensure MongoDB container is running before backend
+
+### Logs
+
+View logs for specific services:
 ```bash
-# Запуск всех сервисов
-docker-compose up -d
+# Development
+docker-compose -f docker-compose.dev.yml logs -f [service_name]
 
-# Остановка всех сервисов
-docker-compose down
-
-# Перезапуск определенного сервиса
-docker-compose restart backend
-
-# Просмотр логов
-docker-compose logs -f backend
-docker-compose logs -f frontend
-
-# Просмотр статуса
-docker-compose ps
+# Production
+docker-compose logs -f [service_name]
 ```
 
-### Работа с базой данных
+### Reset Environment
 
+To completely reset your environment:
 ```bash
-# Подключение к MongoDB
-docker-compose exec mongo mongosh -u root -p bitcraft_password_2024
-
-# Заполнение тестовыми данными
-docker-compose exec backend npm run seed
-
-# Бэкап базы данных
-docker-compose exec mongo mongodump --uri="mongodb://root:bitcraft_password_2024@localhost:27017/bitcraft_task_manager?authSource=admin" --out=/data/backup
-
-# Восстановление базы данных
-docker-compose exec mongo mongorestore --uri="mongodb://root:bitcraft_password_2024@localhost:27017/bitcraft_task_manager?authSource=admin" /data/backup/bitcraft_task_manager
+make clean
 ```
 
-### Разработка
+This will stop all containers, remove volumes, and clean up Docker resources.
 
-```bash
-# Пересборка после изменений
-docker-compose build backend
-docker-compose build frontend
+## Contributing
 
-# Запуск только определенных сервисов
-docker-compose up mongo backend
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test in development environment
+5. Submit a pull request
 
-# Выполнение команд внутри контейнера
-docker-compose exec backend bash
-docker-compose exec frontend sh
-```
+## License
 
-## 🔍 Мониторинг и логи
-
-### Health Check
-- Backend: http://localhost:5000/health
-- Frontend: http://localhost:3000
-- Nginx: http://localhost:80/health
-
-### Логи
-
-```bash
-# Все логи
-docker-compose logs -f
-
-# Логи конкретного сервиса
-docker-compose logs -f backend
-docker-compose logs -f frontend
-docker-compose logs -f mongo
-docker-compose logs -f nginx
-
-# Последние 100 строк
-docker-compose logs --tail=100 backend
-```
-
-## 🐛 Отладка
-
-### Частые проблемы
-
-1. **Контейнер не запускается:**
-   ```bash
-   docker-compose logs [service_name]
-   ```
-
-2. **Проблемы с подключением к БД:**
-   ```bash
-   # Проверить, что MongoDB запущен
-   docker-compose ps mongo
-   
-   # Проверить логи MongoDB
-   docker-compose logs mongo
-   ```
-
-3. **Frontend не подключается к Backend:**
-   ```bash
-   # Проверить переменные окружения
-   docker-compose exec frontend env | grep API
-   
-   # Проверить сеть
-   docker network ls
-   docker network inspect deployment_bitcraft_network
-   ```
-
-4. **Проблемы с правами доступа:**
-   ```bash
-   # Сбросить права на папки
-   sudo chown -R $USER:$USER ./
-   ```
-
-### Полная очистка
-
-```bash
-# Остановить и удалить все контейнеры
-docker-compose down -v
-
-# Удалить все образы проекта
-docker rmi $(docker images "deployment*" -q)
-
-# Очистить неиспользуемые ресурсы
-docker system prune -a
-```
-
-## 📈 Производительность
-
-### Рекомендации для production
-
-1. **Используйте внешний MongoDB:**
-   - MongoDB Atlas
-   - Или выделенный сервер с MongoDB
-
-2. **Настройте SSL/HTTPS:**
-   - Добавьте SSL сертификаты в `deployment/ssl/`
-   - Раскомментируйте SSL конфигурацию в nginx.conf
-
-3. **Настройте мониторинг:**
-   - Prometheus + Grafana
-   - Или используйте облачные решения
-
-4. **Оптимизируйте ресурсы:**
-   ```yaml
-   # В docker-compose.yml добавьте:
-   deploy:
-     resources:
-       limits:
-         memory: 512M
-         cpus: '0.5'
-   ```
-
-## 🔐 Безопасность
-
-### Production checklist
-
-- [ ] Изменить пароли по умолчанию
-- [ ] Настроить HTTPS
-- [ ] Ограничить доступ к портам БД
-- [ ] Настроить firewall
-- [ ] Регулярные бэкапы
-- [ ] Мониторинг логов
-- [ ] Rate limiting в nginx
-
-### Обновление паролей
-
-1. **MongoDB:**
-   ```bash
-   # В docker-compose.yml изменить:
-   MONGO_INITDB_ROOT_PASSWORD: your_secure_password
-   ```
-
-2. **JWT Secret:**
-   ```bash
-   # В docker-compose.yml изменить:
-   JWT_SECRET: your_very_secure_jwt_secret_key
-   ```
-
-## 📞 Поддержка
-
-При проблемах с деплоем:
-
-1. Проверьте логи: `docker-compose logs -f`
-2. Убедитесь в наличии свободного места: `df -h`
-3. Проверьте статус сервисов: `docker-compose ps`
-4. Перезапустите проблемный сервис: `docker-compose restart [service]`
-
-Успешного деплоя! 🚀 
+This project is licensed under the MIT License. 

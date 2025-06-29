@@ -47,11 +47,12 @@ services:
     build:
       context: ../frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: /api
     container_name: bitcraft_frontend
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: http://localhost:5000/api
     ports:
       - "3000:3000"
     depends_on:
@@ -59,7 +60,7 @@ services:
     networks:
       - bitcraft_network
 
-  # Nginx reverse proxy (опционально)
+  # Nginx reverse proxy
   nginx:
     image: nginx:alpine
     container_name: bitcraft_nginx
@@ -70,6 +71,7 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./ssl:/etc/nginx/ssl:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - frontend
       - backend
