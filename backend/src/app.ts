@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 import connectDB from './config/database';
 import taskRoutes from './routes/taskRoutes';
 import userRoutes from './routes/userRoutes';
+import authRoutes from './routes/authRoutes';
 
 // Загружаем переменные окружения
 dotenv.config();
@@ -24,7 +25,12 @@ app.use(helmet({
 }));
 
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: [
+    'http://localhost:3000',  // Direct frontend dev server
+    'http://localhost',       // Through nginx proxy (port 80)
+    'http://localhost:80',    // Explicit port 80
+    ...(process.env.CORS_ORIGIN ? [process.env.CORS_ORIGIN] : [])
+  ],
   credentials: true
 }));
 
@@ -34,6 +40,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Маршруты
+app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/users', userRoutes);
 
@@ -41,7 +48,7 @@ app.use('/api/users', userRoutes);
 app.get('/health', (req, res) => {
   res.json({
     success: true,
-    message: 'BitCraft Task Manager API работает!',
+    message: 'BitCraft Task Manager API is running!',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development'
   });
@@ -51,9 +58,10 @@ app.get('/health', (req, res) => {
 app.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'Добро пожаловать в BitCraft Task Manager API!',
+    message: 'Welcome to BitCraft Task Manager API!',
     version: '1.0.0',
     endpoints: {
+      auth: '/api/auth',
       tasks: '/api/tasks',
       users: '/api/users',
       health: '/health'
@@ -65,25 +73,25 @@ app.get('/', (req, res) => {
 app.use('*', (req, res) => {
   res.status(404).json({
     success: false,
-    message: 'Endpoint не найден'
+    message: 'Endpoint not found'
   });
 });
 
 // Глобальный обработчик ошибок
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Ошибка:', err);
+  console.error('Error:', err);
   
   res.status(err.status || 500).json({
     success: false,
-    message: err.message || 'Внутренняя ошибка сервера',
+    message: err.message || 'Internal server error',
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });
 });
 
 // Запуск сервера
 app.listen(PORT, () => {
-  console.log(`🚀 Сервер запущен на порту ${PORT}`);
-  console.log(`📚 API доступен по адресу: http://localhost:${PORT}`);
+  console.log(`🚀 Server started on port ${PORT}`);
+  console.log(`📚 API available at: http://localhost:${PORT}`);
   console.log(`🏥 Health check: http://localhost:${PORT}/health`);
 });
 

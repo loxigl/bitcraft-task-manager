@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
-import { Task, TaskStatus, Priority, ProfessionType } from '../types';
+import { Task, TaskStatus, Priority, ProfessionType, TaskType } from '../types';
 
 export interface TaskDocument extends Omit<Task, 'id'>, Document {
   id: number;
@@ -9,7 +9,7 @@ const resourceSchema = new Schema({
   name: { type: String, required: true },
   needed: { type: Number, required: true, min: 0 },
   gathered: { type: Number, default: 0, min: 0 },
-  unit: { type: String, required: true },
+  unit: { type: String, required: false },
   contributors: {
     type: Map,
     of: Number,
@@ -33,7 +33,7 @@ const subtaskSchema = new Schema({
     required: true
   },
   dependencies: [{ type: Number }],
-  description: { type: String, required: true },
+  description: { type: String, required: false },
   shipTo: { type: String, default: null },
   takeFrom: { type: String, default: null },
   resources: [resourceSchema],
@@ -44,7 +44,7 @@ const subtaskSchema = new Schema({
 subtaskSchema.add({ subtasks: [subtaskSchema] });
 
 const taskSchema = new Schema<TaskDocument>({
-  id: { type: Number, required: true, unique: true },
+  id: { type: Number, unique: true },
   name: { type: String, required: true, trim: true },
   professions: [{
     type: String,
@@ -53,8 +53,8 @@ const taskSchema = new Schema<TaskDocument>({
   }],
   levels: {
     type: Map,
-    of: Number,
-    required: true
+    of: { type: Number, min: 0, max: 100 },
+    default: () => new Map()
   },
   deadline: { type: String, required: true },
   status: {
@@ -67,36 +67,64 @@ const taskSchema = new Schema<TaskDocument>({
     enum: Object.values(Priority),
     required: true
   },
-  description: { type: String, required: true },
+  description: { type: String, required: false },
   resources: [resourceSchema],
   assignedTo: [{ type: String }],
   createdBy: { type: String, required: true },
-  shipTo: { type: String, required: true },
-  takeFrom: { type: String, required: true },
+  shipTo: { type: String, required: false },
+  takeFrom: { type: String, required: false },
+  taskType: {
+    type: String,
+    enum: Object.values(TaskType),
+    default: TaskType.MEMBER
+  },
   subtasks: [subtaskSchema]
 }, {
   timestamps: true,
   toJSON: {
     transform: function(doc, ret) {
-      ret.levels = Object.fromEntries(ret.levels);
-      ret.resources = ret.resources.map((resource: any) => ({
-        ...resource,
-        contributors: Object.fromEntries(resource.contributors)
-      }));
-      
+      // Функция для преобразования subtasks рекурсивно
       const transformSubtasks = (subtasks: any[]): any[] => {
+        if (!Array.isArray(subtasks)) return [];
         return subtasks.map(subtask => ({
           ...subtask,
-          levels: Object.fromEntries(subtask.levels),
-          resources: subtask.resources.map((resource: any) => ({
-            ...resource,
-            contributors: Object.fromEntries(resource.contributors)
-          })),
+          levels: subtask.levels instanceof Map 
+            ? Object.fromEntries(subtask.levels)
+            : (subtask.levels || {}),
+          resources: Array.isArray(subtask.resources) 
+            ? subtask.resources.map((resource: any) => ({
+                ...resource,
+                contributors: resource.contributors instanceof Map
+                  ? Object.fromEntries(resource.contributors)
+                  : (resource.contributors || {})
+              }))
+            : [],
           subtasks: subtask.subtasks ? transformSubtasks(subtask.subtasks) : []
         }));
       };
+
+      // Безопасное преобразование Map в Object для levels
+      if (ret.levels && ret.levels instanceof Map) {
+        ret.levels = Object.fromEntries(ret.levels);
+      } else if (ret.levels && typeof ret.levels === 'object') {
+        ret.levels = ret.levels;
+      } else {
+        ret.levels = {};
+      }
       
-      ret.subtasks = transformSubtasks(ret.subtasks);
+      // Безопасное преобразование Map в Object для resources contributors
+      if (ret.resources && Array.isArray(ret.resources)) {
+        ret.resources = ret.resources.map((resource: any) => ({
+          ...resource,
+          contributors: resource.contributors instanceof Map 
+            ? Object.fromEntries(resource.contributors)
+            : resource.contributors || {}
+        }));
+      }
+      
+      // Обрабатываем subtasks рекурсивно
+      ret.subtasks = transformSubtasks(ret.subtasks || []);
+      
       return ret;
     }
   }

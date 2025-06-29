@@ -22,6 +22,9 @@ router.put('/:userId/professions/:profession', UserController.updateProfessionLe
 // PUT /api/users/:userId/profile - обновить профиль пользователя
 router.put('/:userId/profile', UserController.updateProfile);
 
+// PUT /api/users/:userId/guild - обновить гильдию пользователя
+router.put('/:userId/guild', UserController.updateGuild);
+
 // GET /api/users/:userId/stats - получить статистику пользователя
 router.get('/:userId/stats', UserController.getUserStats);
 

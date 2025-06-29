@@ -6,16 +6,18 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { calculateResourceProgress } from "@/lib/utils/task-utils"
-import { mockUser } from "@/lib/mock-data"
+import { useUser } from "@/contexts/UserContext"
 import { cn } from "@/lib/utils"
 
 interface ResourceTrackerProps {
   resources: any[]
-  taskId: number
+  taskId: string | number
   subtaskId?: number | null
   canEdit?: boolean
   title?: string
-  updateResourceContribution: (taskId: number, subtaskId: number | null, resourceName: string, quantity: number) => void
+  updateResourceContribution: (taskId: string | number, subtaskId: number | null, resourceName: string, quantity: number) => void
+  onCompleteTask?: (taskId: string | number) => void
+  onCompleteSubtask?: (taskId: string | number, subtaskId: number) => void
 }
 
 export function ResourceTracker({
@@ -25,9 +27,12 @@ export function ResourceTracker({
   canEdit = false,
   title = "Resources",
   updateResourceContribution,
+  onCompleteTask,
+  onCompleteSubtask,
 }: ResourceTrackerProps) {
   const [editingResource, setEditingResource] = useState<string | null>(null)
   const [newQuantity, setNewQuantity] = useState(0)
+  const { currentUser } = useUser()
 
   const handleUpdateResource = (resourceName: string) => {
     if (newQuantity >= 0) {
@@ -40,6 +45,7 @@ export function ResourceTracker({
   if (!resources || resources.length === 0) return null
 
   const overallProgress = calculateResourceProgress(resources)
+  const currentUserName = currentUser?.name || "Unknown User"
 
   return (
     <div className="space-y-3">
@@ -60,10 +66,34 @@ export function ResourceTracker({
         </Badge>
       </div>
 
+      {overallProgress === 100 && canEdit && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-green-700">
+              <span className="text-sm font-medium">🎉 All resources completed!</span>
+              <span className="text-xs">Ready to mark as done?</span>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (subtaskId && onCompleteSubtask) {
+                  onCompleteSubtask(taskId, subtaskId)
+                } else if (!subtaskId && onCompleteTask) {
+                  onCompleteTask(taskId)
+                }
+              }}
+              className="h-7 px-3 text-xs bg-green-600 hover:bg-green-700"
+            >
+              Mark Complete
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-2">
         {resources.map((resource, index) => {
           const progress = resource.needed > 0 ? (resource.gathered / resource.needed) * 100 : 100
-          const userContribution = resource.contributors[mockUser.name] || 0
+          const userContribution = resource.contributors[currentUserName] || 0
           const isEditing = editingResource === resource.name
 
           return (
@@ -103,9 +133,9 @@ export function ResourceTracker({
                   {Object.entries(resource.contributors).map(([contributor, amount], idx) => (
                     <span
                       key={contributor}
-                      className={cn(contributor === mockUser.name && "font-semibold text-blue-600")}
+                      className={cn(contributor === currentUserName && "font-semibold text-blue-600")}
                     >
-                      {contributor} ({amount}){idx < Object.entries(resource.contributors).length - 1 && ", "}
+                      {contributor} ({amount as number}){idx < Object.entries(resource.contributors).length - 1 && ", "}
                     </span>
                   ))}
                 </div>

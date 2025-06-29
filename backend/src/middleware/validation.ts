@@ -18,20 +18,20 @@ export const validateCreateTask = [
   body('name')
     .trim()
     .isLength({ min: 3, max: 100 })
-    .withMessage('Название задачи должно быть от 3 до 100 символов'),
+    .withMessage('Task name must be between 3 and 100 characters'),
   
   body('professions')
     .isArray({ min: 1 })
-    .withMessage('Должна быть указана хотя бы одна профессия')
+    .withMessage('At least one profession must be specified')
     .custom((value) => {
       if (!Array.isArray(value)) return false;
       return value.every(prof => Object.values(ProfessionType).includes(prof));
     })
-    .withMessage('Недопустимая профессия'),
+    .withMessage('Invalid profession'),
   
   body('levels')
     .isObject()
-    .withMessage('Уровни должны быть объектом')
+    .withMessage('Levels must be an object')
     .custom((value, { req }) => {
       if (!req.body.professions) return true;
       return req.body.professions.every((prof: string) => 
@@ -41,77 +41,92 @@ export const validateCreateTask = [
         value[prof] <= 100
       );
     })
-    .withMessage('Все указанные профессии должны иметь уровень от 1 до 100'),
+    .withMessage('All specified professions must have a level between 1 and 100'),
   
   body('deadline')
     .isISO8601()
-    .withMessage('Дедлайн должен быть в формате ISO 8601'),
+    .withMessage('Deadline must be in ISO 8601 format'),
   
   body('priority')
     .isIn(Object.values(Priority))
-    .withMessage('Недопустимый приоритет'),
+    .withMessage('Invalid priority'),
   
   body('description')
+    .optional({ values: 'falsy' })
     .trim()
     .isLength({ min: 10, max: 1000 })
-    .withMessage('Описание должно быть от 10 до 1000 символов'),
+    .withMessage('Description must be between 10 and 1000 characters'),
+  
+  body('createdBy')
+    .trim()
+    .isLength({ min: 1, max: 50 })
+    .withMessage('Creator name is required'),
   
   body('shipTo')
+    .optional({ values: 'falsy' })
     .trim()
     .isLength({ min: 1, max: 100 })
-    .withMessage('Место доставки обязательно'),
+    .withMessage('Ship to location is required if provided'),
   
   body('takeFrom')
+    .optional({ values: 'falsy' })
     .trim()
     .isLength({ min: 1, max: 100 })
-    .withMessage('Место получения обязательно'),
+    .withMessage('Take from location is required if provided'),
   
   body('resources')
     .optional()
     .isArray()
-    .withMessage('Ресурсы должны быть массивом'),
+    .withMessage('Resources must be an array'),
   
   body('resources.*.name')
     .if(body('resources').exists())
     .trim()
     .isLength({ min: 1, max: 50 })
-    .withMessage('Название ресурса обязательно'),
+    .withMessage('Resource name is required'),
   
   body('resources.*.needed')
     .if(body('resources').exists())
     .isInt({ min: 1 })
-    .withMessage('Количество ресурса должно быть положительным числом'),
+    .withMessage('Resource quantity must be a positive number'),
   
   body('resources.*.unit')
     .if(body('resources').exists())
+    .optional({ values: 'falsy' })
     .trim()
     .isLength({ min: 1, max: 20 })
-    .withMessage('Единица измерения обязательна'),
+    .withMessage('Unit is required if provided'),
   
   handleValidationErrors
 ];
 
 export const validateUpdateResource = [
   param('taskId')
-    .isMongoId()
-    .withMessage('Недопустимый ID задачи'),
+    .custom((value) => {
+      // Принимаем как MongoDB ObjectId так и числовые ID
+      return /^[0-9a-fA-F]{24}$/.test(value) || /^\d+$/.test(value);
+    })
+    .withMessage('Invalid task ID'),
   
   param('resourceName')
     .trim()
     .isLength({ min: 1 })
-    .withMessage('Название ресурса обязательно'),
+    .withMessage('Resource name is required'),
   
   body('quantity')
     .isInt({ min: 0 })
-    .withMessage('Количество должно быть неотрицательным числом'),
+    .withMessage('Quantity must be a non-negative number'),
   
   handleValidationErrors
 ];
 
 export const validateClaimTask = [
   param('taskId')
-    .isMongoId()
-    .withMessage('Недопустимый ID задачи'),
+    .custom((value) => {
+      // Принимаем как MongoDB ObjectId так и числовые ID
+      return /^[0-9a-fA-F]{24}$/.test(value) || /^\d+$/.test(value);
+    })
+    .withMessage('Invalid task ID'),
   
   handleValidationErrors
 ];
@@ -124,13 +139,46 @@ export const validateUser = [
   
   body('email')
     .isEmail()
-    .normalizeEmail()
     .withMessage('Недопустимый email'),
   
   body('guild')
     .trim()
     .isLength({ min: 2, max: 50 })
     .withMessage('Название гильдии должно быть от 2 до 50 символов'),
+  
+  handleValidationErrors
+];
+
+export const validateRegister = [
+  body('name')
+    .trim()
+    .isLength({ min: 2, max: 50 })
+    .withMessage('Name must be between 2 and 50 characters'),
+  
+  body('email')
+    .isEmail()
+    .withMessage('Invalid email'),
+  
+  body('password')
+    .isLength({ min: 6, max: 100 })
+    .withMessage('Password must be between 6 and 100 characters'),
+  
+  body('guild')
+    .trim()
+    .isLength({ min: 2, max: 50 })
+    .withMessage('Guild name must be between 2 and 50 characters'),
+  
+  handleValidationErrors
+];
+
+export const validateLogin = [
+  body('email')
+    .isEmail()
+    .withMessage('Invalid email'),
+  
+  body('password')
+    .isLength({ min: 1 })
+    .withMessage('Password is required'),
   
   handleValidationErrors
 ]; 

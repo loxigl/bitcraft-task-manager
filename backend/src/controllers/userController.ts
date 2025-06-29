@@ -244,6 +244,46 @@ export class UserController {
     }
   }
 
+  // Обновить гильдию пользователя
+  static async updateGuild(req: Request, res: Response) {
+    try {
+      const { userId } = req.params;
+      const { guild } = req.body;
+
+      if (!guild || typeof guild !== 'string' || guild.trim().length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Guild name is required and must be a non-empty string'
+        });
+      }
+
+      const user = await UserModel.findByIdAndUpdate(
+        userId,
+        { $set: { guild: guild.trim() } },
+        { new: true, runValidators: true }
+      );
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found'
+        });
+      }
+
+      return res.json({
+        success: true,
+        data: user,
+        message: 'Guild successfully updated'
+      });
+    } catch (error) {
+      console.error('Error updating guild:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Server error while updating guild'
+      });
+    }
+  }
+
   // Получить статистику пользователя
   static async getUserStats(req: Request, res: Response) {
     try {

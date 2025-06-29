@@ -13,6 +13,17 @@ export enum ProfessionType {
   TAILORING = 'tailoring'
 }
 
+export enum UserRole {
+  MEMBER = 'member',
+  ADMIN = 'admin',
+  GUILD_LEADER = 'guild_leader'
+}
+
+export enum TaskType {
+  GUILD = 'guild',
+  MEMBER = 'member'
+}
+
 export enum TaskStatus {
   OPEN = 'open',
   TAKEN = 'taken',
@@ -73,6 +84,7 @@ export interface Task {
   createdBy: string;
   shipTo: string;
   takeFrom: string;
+  taskType: TaskType;
   subtasks: Subtask[];
   createdAt?: Date;
   updatedAt?: Date;
@@ -81,15 +93,34 @@ export interface Task {
 export interface User {
   name: string;
   email: string;
+  password: string;
   avatar?: string;
   level: number;
   guild: string;
+  role: UserRole;
   professions: Map<ProfessionType, ProfessionLevel>;
   completedTasks: number;
   currentTasks: number;
   reputation: number;
   createdAt?: Date;
   updatedAt?: Date;
+}
+
+export interface RegisterRequest {
+  name: string;
+  email: string;
+  password: string;
+  guild: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  user: Omit<User, 'password'>;
+  token: string;
 }
 
 export interface AuthRequest {
@@ -106,6 +137,7 @@ export interface CreateTaskRequest {
   resources: Omit<Resource, 'contributors' | 'gathered'>[];
   shipTo: string;
   takeFrom: string;
+  taskType: TaskType;
   subtasks?: Omit<Subtask, 'id'>[];
 }
 

@@ -1,10 +1,11 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { UserProvider } from '@/contexts/UserContext'
+import { Toaster } from '@/components/ui/toaster'
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.dev',
+  title: 'BitCraft Task Manager',
+  description: 'Guild task management system for BitCraft',
 }
 
 export default function RootLayout({
@@ -14,7 +15,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <UserProvider>
+          {children}
+          <Toaster />
+        </UserProvider>
+      </body>
     </html>
   )
 }

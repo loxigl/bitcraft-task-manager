@@ -102,15 +102,22 @@ export function AdminPanel({
             </TableHeader>
             <TableBody>
               {tasks.map((task) => (
-                <TableRow key={task.id}>
-                  <TableCell className="font-medium">{task.name}</TableCell>
+                <TableRow key={task._id || task.id}>
+                  <TableCell className="font-medium">
+                    <div>
+                      <div>{task.name}</div>
+                      <div className="text-xs text-gray-500">
+                        Created by: {task.createdBy || "Unknown"}
+                      </div>
+                    </div>
+                  </TableCell>
                   <TableCell>
                     {Array.isArray(task.assignedTo) && task.assignedTo.length > 0
                       ? task.assignedTo.join(", ")
                       : task.assignedTo || "Unassigned"}
                   </TableCell>
                   <TableCell>
-                    <Badge className={cn("text-white", getStatusColor(task.status))}>{task.status}</Badge>
+                    <Badge className={cn(getStatusColor(task.status))}>{task.status}</Badge>
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className={getPriorityColor(task.priority)}>
@@ -130,7 +137,7 @@ export function AdminPanel({
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => deleteTask(task.id)}>
+                      <Button variant="outline" size="sm" onClick={() => deleteTask(task._id || task.id)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>

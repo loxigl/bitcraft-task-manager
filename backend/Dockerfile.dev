@@ -1,0 +1,19 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm ci
+
+# Install development dependencies
+RUN npm install -g nodemon
+
+# Copy source code
+COPY . .
+
+# Expose ports (5000 for app, 9229 for debug)
+EXPOSE 5000 9229
+
+# Start development server with ts-node-dev and debug
+CMD ["npm", "run", "dev", "--", "--inspect=0.0.0.0:9229"] 

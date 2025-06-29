@@ -1,4 +1,4 @@
-import { mockUser } from "@/lib/mock-data"
+// Removed mockUser import - now using real user data
 
 export function canDoSubtask(subtask: any, task: any, userProfessions: any) {
   // Check user's profession levels
@@ -53,20 +53,24 @@ export function canClaimTask(task: any, userProfessions: any) {
   })
 }
 
-export function isUserAssigned(assignedTo: any) {
-  return Array.isArray(assignedTo) ? assignedTo.includes(mockUser.name) : assignedTo === mockUser.name
+export function isUserAssigned(assignedTo: any, userName?: string) {
+  if (!userName) return false
+  return Array.isArray(assignedTo) ? assignedTo.includes(userName) : assignedTo === userName
 }
 
 export function getStatusColor(status: string) {
   switch (status) {
     case "open":
-      return "bg-green-500"
+      return "bg-green-100 text-green-800 border-green-200"
     case "taken":
-      return "bg-yellow-500"
+    case "in_progress":
+    case "in progress":
+      return "bg-blue-100 text-blue-800 border-blue-200"
     case "done":
-      return "bg-gray-500"
+    case "completed":
+      return "bg-gray-100 text-gray-800 border-gray-200"
     default:
-      return "bg-gray-500"
+      return "bg-gray-100 text-gray-800 border-gray-200"
   }
 }
 
@@ -93,15 +97,25 @@ export function calculateResourceProgress(resources: any[]) {
 }
 
 export function calculateOverallProgress(item: any): number {
+  // Если элемент помечен как завершенный, он 100% готов
+  if (item.completed) {
+    return 100
+  }
+
   const resourceProgress = calculateResourceProgress(item.resources)
 
   if (item.subtasks && item.subtasks.length > 0) {
     const subtaskProgress =
       item.subtasks.reduce((sum: number, subtask: any) => {
+        // Если сабтаск завершен, он даёт 100% независимо от ресурсов
+        if (subtask.completed) {
+          return sum + 100
+        }
         return sum + calculateOverallProgress(subtask)
       }, 0) / item.subtasks.length
 
-    return Math.round(resourceProgress * 0.6 + subtaskProgress * 0.4)
+    // Если есть сабтаски, ресурсы и сабтаски имеют равный вес
+    return Math.round(resourceProgress * 0.5 + subtaskProgress * 0.5)
   }
 
   return resourceProgress

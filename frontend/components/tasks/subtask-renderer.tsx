@@ -19,18 +19,19 @@ import {
 import { professionIcons } from "@/lib/constants"
 import { canDoSubtask, isUserAssigned, calculateResourceProgress } from "@/lib/utils/task-utils"
 import { ResourceTracker } from "@/components/resources/resource-tracker"
+import { useUser } from "@/contexts/UserContext"
 import { cn } from "@/lib/utils"
 
 interface SubtaskRendererProps {
   subtasks: any[]
   parentTask: any
-  taskId: number
+  taskId: string | number
   userProfessions: any
-  mockUser: any
-  claimSubtask: (taskId: number, subtaskId: number) => void
-  updateResourceContribution: (taskId: number, subtaskId: number | null, resourceName: string, quantity: number) => void
+  claimSubtask: (taskId: string | number, subtaskId: number) => void
+  updateResourceContribution: (taskId: string | number, subtaskId: number | null, resourceName: string, quantity: number) => void
   showOnlyAvailable: boolean
   level?: number
+  completeSubtask?: (taskId: string | number, subtaskId: number) => void
 }
 
 export function SubtaskRenderer({
@@ -38,13 +39,15 @@ export function SubtaskRenderer({
   parentTask,
   taskId,
   userProfessions,
-  mockUser,
   claimSubtask,
   updateResourceContribution,
   showOnlyAvailable,
   level = 0,
+  completeSubtask,
 }: SubtaskRendererProps) {
   const [expandedSubtasks, setExpandedSubtasks] = useState(new Set())
+  const { currentUser } = useUser()
+  const currentUserName = currentUser?.name || ""
 
   const toggleSubtaskExpansion = (subtaskKey: string) => {
     const newExpanded = new Set(expandedSubtasks)
@@ -66,13 +69,13 @@ export function SubtaskRenderer({
         const isExpanded = expandedSubtasks.has(subtaskKey)
         const hasNestedSubtasks = subtask.subtasks && subtask.subtasks.length > 0
         const indentClass = level > 0 ? `ml-${level * 4}` : ""
-        const userAssigned = isUserAssigned(subtask.assignedTo)
+        const userAssigned = isUserAssigned(subtask.assignedTo, currentUserName)
         const hasAssignees = Array.isArray(subtask.assignedTo) ? subtask.assignedTo.length > 0 : !!subtask.assignedTo
 
         const dependencyInfo = subtask.dependencies.map((depId: number) => {
           const findDep = (list: any[]) =>
-            list?.find((st) => st.id === depId) ||
-            list?.flatMap((st) => st.subtasks || []).find((st) => st.id === depId)
+            list?.find((st: any) => st.id === depId) ||
+            list?.flatMap((st: any) => st.subtasks || []).find((st: any) => st.id === depId)
           const dependency = findDep(parentTask.subtasks)
           return {
             id: depId,
@@ -81,7 +84,7 @@ export function SubtaskRenderer({
           }
         })
 
-        const hasUnmetDependencies = dependencyInfo.some((dep) => !dep.completed)
+        const hasUnmetDependencies = dependencyInfo.some((dep: any) => !dep.completed)
         const resourceProgress = calculateResourceProgress(subtask.resources)
 
         if (showOnlyAvailable && !canDo && !subtask.completed) {
@@ -115,9 +118,25 @@ export function SubtaskRenderer({
                 <input
                   type="checkbox"
                   checked={subtask.completed}
-                  onChange={() => {}}
+                  onChange={async () => {
+                    if (!completeSubtask) return
+                    
+                    try {
+                      if (!subtask.completed && canDo) {
+                        // Отмечаем как выполненную
+                        await completeSubtask(taskId, subtask.id)
+                      } else if (subtask.completed) {
+                        // Отменяем выполнение - можно делать только если пользователь назначен
+                        if (userAssigned) {
+                          await completeSubtask(taskId, subtask.id) // API должно переключать статус
+                        }
+                      }
+                    } catch (error) {
+                      console.error('Error toggling subtask completion:', error)
+                    }
+                  }}
                   className="rounded shrink-0"
-                  disabled={!canDo && !subtask.completed}
+                  disabled={(!canDo && !subtask.completed && !userAssigned) || !completeSubtask}
                 />
 
                 <div className="flex-1 min-w-0">
@@ -177,7 +196,7 @@ export function SubtaskRenderer({
 
                     {subtask.dependencies.length > 0 && (
                       <span className="flex items-center gap-1 shrink-0">
-                        🔗 {dependencyInfo.filter((dep) => dep.completed).length}/{dependencyInfo.length}
+                        🔗 {dependencyInfo.filter((dep: any) => dep.completed).length}/{dependencyInfo.length}
                       </span>
                     )}
 
@@ -189,10 +208,11 @@ export function SubtaskRenderer({
               <div className="flex items-center gap-2 shrink-0">
                 <div className="hidden md:flex gap-1">
                   {subtask.professions.slice(0, 2).map((prof: string) => {
-                    const Icon = professionIcons[prof]
+                    const Icon = professionIcons[prof as keyof typeof professionIcons]
                     const userLevel = userProfessions[prof]?.level || 0
                     const requiredLevel = subtask.levels[prof] || 0
                     const hasLevel = userLevel >= requiredLevel
+                    if (!Icon) return null
                     return (
                       <div
                         key={prof}
@@ -269,10 +289,11 @@ export function SubtaskRenderer({
                       <h6 className="text-xs font-medium text-gray-700 mb-2">Required Skills</h6>
                       <div className="flex flex-wrap gap-1">
                         {subtask.professions.map((prof: string) => {
-                          const Icon = professionIcons[prof]
+                          const Icon = professionIcons[prof as keyof typeof professionIcons]
                           const userLevel = userProfessions[prof]?.level || 0
                           const requiredLevel = subtask.levels[prof] || 0
                           const hasLevel = userLevel >= requiredLevel
+                          if (!Icon) return null
                           return (
                             <div
                               key={prof}
@@ -296,7 +317,7 @@ export function SubtaskRenderer({
                   <div>
                     <h6 className="text-xs font-medium text-gray-700 mb-2">Dependencies</h6>
                     <div className="flex flex-wrap gap-2">
-                      {dependencyInfo.map((dep) => (
+                      {dependencyInfo.map((dep: any) => (
                         <div
                           key={dep.id}
                           className={cn(
@@ -323,7 +344,7 @@ export function SubtaskRenderer({
                             variant="outline"
                             className={cn(
                               "text-xs",
-                              assignee === mockUser.name ? "bg-blue-50 text-blue-700" : "bg-gray-50 text-gray-700",
+                              assignee === currentUserName ? "bg-blue-50 text-blue-700" : "bg-gray-50 text-gray-700",
                             )}
                           >
                             <User className="h-3 w-3 mr-1" />
@@ -359,11 +380,11 @@ export function SubtaskRenderer({
                   parentTask={parentTask}
                   taskId={taskId}
                   userProfessions={userProfessions}
-                  mockUser={mockUser}
                   claimSubtask={claimSubtask}
                   updateResourceContribution={updateResourceContribution}
                   showOnlyAvailable={showOnlyAvailable}
                   level={level + 1}
+                  completeSubtask={completeSubtask}
                 />
               </div>
             )}

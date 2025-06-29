@@ -45,36 +45,42 @@ import {
 } from "@/lib/utils/task-utils"
 import { ResourceTracker } from "@/components/resources/resource-tracker"
 import { SubtaskRenderer } from "@/components/tasks/subtask-renderer"
+import { useUser } from "@/contexts/UserContext"
 import { cn } from "@/lib/utils"
 
 interface TaskDashboardProps {
   tasks: any[]
   userProfessions: any
-  mockUser: any
-  claimTask: (taskId: number) => void
-  claimSubtask: (taskId: number, subtaskId: number) => void
-  updateResourceContribution: (taskId: number, subtaskId: number | null, resourceName: string, quantity: number) => void
+  claimTask: (taskId: string | number) => void
+  claimSubtask: (taskId: string | number, subtaskId: number) => void
+  updateResourceContribution: (taskId: string | number, subtaskId: number | null, resourceName: string, quantity: number) => void
   setCurrentView: (view: string) => void
   setIsCreateTaskOpen: (open: boolean) => void
+  onTaskUpdate?: () => void
+  completeSubtask?: (taskId: string | number, subtaskId: number) => void
 }
 
 export function TaskDashboard({
   tasks,
   userProfessions,
-  mockUser,
   claimTask,
   claimSubtask,
   updateResourceContribution,
   setCurrentView,
   setIsCreateTaskOpen,
+  onTaskUpdate,
+  completeSubtask,
 }: TaskDashboardProps) {
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = useState("open")
   const [professionFilter, setProfessionFilter] = useState("all")
   const [showOnlyAvailable, setShowOnlyAvailable] = useState(false)
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" })
   const [expandedTasks, setExpandedTasks] = useState(new Set())
   const [selectedTask, setSelectedTask] = useState(null)
+  
+  const { currentUser } = useUser()
+  const currentUserName = currentUser?.name || ""
 
   const toggleTaskExpansion = (taskId: number) => {
     const newExpanded = new Set(expandedTasks)
@@ -138,25 +144,21 @@ export function TaskDashboard({
     return getAllAvailableSubtasks(task.subtasks, task, userProfessions)
   }
 
+  // Обертка для клейма с обновлением
+  const handleClaimTask = async (taskId: string | number) => {
+    await claimTask(taskId)
+    // Основные функции уже обновляют состояние, вызываем onTaskUpdate для дополнительной синхронизации
+    onTaskUpdate?.()
+  }
+
+  const handleClaimSubtask = async (taskId: string | number, subtaskId: number) => {
+    await claimSubtask(taskId, subtaskId)
+    // Основные функции уже обновляют состояние, вызываем onTaskUpdate для дополнительной синхронизации  
+    onTaskUpdate?.()
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Guild Task Board</h1>
-          <p className="text-gray-600">Manage and track crafting tasks for BitCraft</p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={() => setCurrentView("admin")} variant="outline">
-            <BarChart3 className="h-4 w-4 mr-2" />
-            Admin Panel
-          </Button>
-          <Button onClick={() => setIsCreateTaskOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Task
-          </Button>
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Filters Sidebar */}
         <Card className="lg:col-span-1">
@@ -190,8 +192,8 @@ export function TaskDashboard({
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="open">Open</SelectItem>
-                  <SelectItem value="taken">Taken</SelectItem>
-                  <SelectItem value="done">Done</SelectItem>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -278,7 +280,7 @@ export function TaskDashboard({
                     const isExpanded = expandedTasks.has(task.id)
                     const hasSubtasks = task.subtasks && task.subtasks.length > 0
                     const canDoTask = canClaimTask(task, userProfessions)
-                    const userAssignedToTask = isUserAssigned(task.assignedTo)
+                    const userAssignedToTask = isUserAssigned(task.assignedTo, currentUserName)
                     const hasTaskAssignees = Array.isArray(task.assignedTo)
                       ? task.assignedTo.length > 0
                       : !!task.assignedTo
@@ -323,6 +325,11 @@ export function TaskDashboard({
                                 )}
                               </div>
                               <div className="text-sm text-gray-500 truncate max-w-xs">{task.description}</div>
+                              {task.createdBy && (
+                                <div className="text-xs text-gray-400 mt-1">
+                                  Created by: {task.createdBy}
+                                </div>
+                              )}
                               {hasTaskAssignees && (
                                 <div className="text-xs text-blue-600 mt-1">
                                   Assigned to:{" "}
@@ -356,10 +363,11 @@ export function TaskDashboard({
                           <TableCell>
                             <div className="flex gap-1 flex-wrap">
                               {task.professions.map((prof: string) => {
-                                const Icon = professionIcons[prof]
+                                const Icon = professionIcons[prof as keyof typeof professionIcons]
                                 const userLevel = userProfessions[prof]?.level || 0
                                 const requiredLevel = task.levels[prof] || 0
                                 const canDo = userLevel >= requiredLevel
+                                if (!Icon) return null
                                 return (
                                   <div
                                     key={prof}
@@ -382,7 +390,7 @@ export function TaskDashboard({
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge className={cn("text-white", getStatusColor(task.status))}>{task.status}</Badge>
+                            <Badge className={cn(getStatusColor(task.status))}>{task.status}</Badge>
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline" className={getPriorityColor(task.priority)}>
@@ -390,208 +398,136 @@ export function TaskDashboard({
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <div className="flex gap-2">
-                              <Dialog>
-                                <DialogTrigger asChild>
-                                  <Button variant="outline" size="sm" onClick={() => setSelectedTask(task)}>
-                                    View Details
-                                  </Button>
-                                </DialogTrigger>
-                                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                                  <DialogHeader>
-                                    <DialogTitle className="flex items-center gap-2">
-                                      {task.name}
-                                      <Badge className={cn("text-white", getStatusColor(task.status))}>
-                                        {task.status}
-                                      </Badge>
-                                    </DialogTitle>
-                                    <DialogDescription>Created by {task.createdBy}</DialogDescription>
-                                  </DialogHeader>
-                                  <div className="space-y-4">
-                                    <div>
-                                      <h4 className="font-semibold mb-2">Description</h4>
-                                      <p className="text-gray-600">{task.description}</p>
-                                    </div>
-
-                                    <div>
-                                      <h4 className="font-semibold mb-2">Required Professions</h4>
-                                      <div className="flex gap-2 flex-wrap">
-                                        {task.professions.map((prof: string) => {
-                                          const Icon = professionIcons[prof]
-                                          const userLevel = userProfessions[prof]?.level || 0
-                                          const requiredLevel = task.levels[prof] || 0
-                                          const canDo = userLevel >= requiredLevel
-                                          return (
-                                            <div
-                                              key={prof}
-                                              className={cn(
-                                                "flex items-center gap-2 rounded-lg px-3 py-2",
-                                                canDo ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800",
-                                              )}
-                                            >
-                                              <Icon className="h-4 w-4" />
-                                              <span className="capitalize">{prof}</span>
-                                              <Badge variant="secondary">
-                                                Lv. {requiredLevel} ({canDo ? "✓" : "✗"})
-                                              </Badge>
-                                            </div>
-                                          )
-                                        })}
-                                      </div>
-                                    </div>
-
-                                    {(task.shipTo || task.takeFrom) && (
-                                      <div>
-                                        <h4 className="font-semibold mb-2">Logistics</h4>
-                                        <div className="flex gap-4">
-                                          {task.takeFrom && (
-                                            <div className="flex items-center gap-2 bg-blue-50 rounded-lg px-3 py-2">
-                                              <MapPin className="h-4 w-4 text-blue-600" />
-                                              <span className="text-sm">Take from: {task.takeFrom}</span>
-                                            </div>
-                                          )}
-                                          {task.shipTo && (
-                                            <div className="flex items-center gap-2 bg-green-50 rounded-lg px-3 py-2">
-                                              <Package className="h-4 w-4 text-green-600" />
-                                              <span className="text-sm">Ship to: {task.shipTo}</span>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {task.resources && task.resources.length > 0 && (
-                                      <div>
-                                        <h4 className="font-semibold mb-2">Task Resources</h4>
-                                        <ResourceTracker
-                                          resources={task.resources}
-                                          taskId={task.id}
-                                          canEdit={isUserAssigned(task.assignedTo)}
-                                          title="Main Task Resources"
-                                          updateResourceContribution={updateResourceContribution}
-                                        />
-                                      </div>
-                                    )}
-
-                                    <div>
-                                      <h4 className="font-semibold mb-2">Overall Progress</h4>
-                                      <div className="flex items-center gap-3">
-                                        <div className="flex-1">
-                                          <Progress value={calculateOverallProgress(task)} className="h-3" />
-                                        </div>
-                                        <Badge
-                                          variant="outline"
-                                          className={cn(
-                                            "text-sm",
-                                            calculateOverallProgress(task) === 100
-                                              ? "bg-green-50 text-green-700"
-                                              : calculateOverallProgress(task) >= 50
-                                                ? "bg-yellow-50 text-yellow-700"
-                                                : "bg-red-50 text-red-700",
-                                          )}
-                                        >
-                                          {calculateOverallProgress(task)}% Complete
-                                        </Badge>
-                                      </div>
-                                    </div>
-
-                                    <div>
-                                      <h4 className="font-semibold mb-2">
-                                        Subtasks ({task.subtasks?.filter((st: any) => st.completed).length || 0}/
-                                        {task.subtasks?.length || 0})
-                                      </h4>
-                                      <div className="space-y-3">
-                                        <SubtaskRenderer
-                                          subtasks={task.subtasks}
-                                          parentTask={task}
-                                          taskId={task.id}
-                                          userProfessions={userProfessions}
-                                          mockUser={mockUser}
-                                          claimSubtask={claimSubtask}
-                                          updateResourceContribution={updateResourceContribution}
-                                          showOnlyAvailable={showOnlyAvailable}
-                                        />
-                                      </div>
-                                    </div>
-
-                                    <div className="flex items-center justify-between pt-4 border-t">
-                                      <div className="flex items-center gap-2 text-sm text-gray-500">
-                                        <CalendarIcon className="h-4 w-4" />
-                                        Deadline: {format(new Date(task.deadline), "PPP")}
-                                      </div>
-                                      {canDoTask && (
-                                        <Button
-                                          variant={userAssignedToTask ? "outline" : "default"}
-                                          onClick={() => claimTask(task.id)}
-                                        >
-                                          {userAssignedToTask ? (
-                                            <>
-                                              <UserMinus className="h-4 w-4 mr-2" />
-                                              Leave Task
-                                            </>
-                                          ) : (
-                                            <>
-                                              <UserPlus className="h-4 w-4 mr-2" />
-                                              Claim Task
-                                            </>
-                                          )}
-                                        </Button>
-                                      )}
-                                      {hasTaskAssignees && (
-                                        <div className="text-sm text-gray-500">
-                                          Assigned to:{" "}
-                                          {Array.isArray(task.assignedTo)
-                                            ? task.assignedTo.join(", ")
-                                            : task.assignedTo}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </DialogContent>
-                              </Dialog>
-
-                              {canDoTask && (
+                            <div className="flex gap-1">
+                              {canDoTask ? (
                                 <Button
-                                  variant={userAssignedToTask ? "outline" : "default"}
+                                  variant={userAssignedToTask ? "secondary" : "default"}
                                   size="sm"
-                                  onClick={() => claimTask(task.id)}
+                                  onClick={() => handleClaimTask(task._id || task.id)}
+                                  className="text-xs"
                                 >
                                   {userAssignedToTask ? (
                                     <>
-                                      <UserMinus className="h-4 w-4 mr-1" />
+                                      <UserMinus className="h-3 w-3 mr-1" />
                                       Leave
                                     </>
                                   ) : (
                                     <>
-                                      <UserPlus className="h-4 w-4 mr-1" />
+                                      <UserPlus className="h-3 w-3 mr-1" />
                                       Claim
                                     </>
                                   )}
                                 </Button>
+                              ) : (
+                                <div className="text-xs text-gray-500 px-2">Can't claim</div>
                               )}
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button variant="outline" size="sm" onClick={() => setSelectedTask(task)}>
+                                    Details
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                                  <DialogHeader>
+                                    <DialogTitle>{task.name}</DialogTitle>
+                                    <DialogDescription>
+                                      Created by {task.createdBy} • Due {format(new Date(task.deadline), "PPP")}
+                                    </DialogDescription>
+                                  </DialogHeader>
+                                  {selectedTask && selectedTask.id === task.id && (
+                                    <div className="space-y-6">
+                                      <div>
+                                        <h3 className="text-lg font-semibold mb-2">Description</h3>
+                                        <p className="text-gray-700">{task.description}</p>
+                                      </div>
+
+                                      <div>
+                                        <h3 className="text-lg font-semibold mb-2">Required Professions</h3>
+                                        <div className="flex gap-2 flex-wrap">
+                                          {task.professions.map((prof: string) => {
+                                            const Icon = professionIcons[prof]
+                                            const userLevel = userProfessions[prof]?.level || 0
+                                            const requiredLevel = task.levels[prof] || 0
+                                            const canDo = userLevel >= requiredLevel
+                                            return (
+                                              <div
+                                                key={prof}
+                                                className={cn(
+                                                  "flex items-center gap-2 rounded px-3 py-2",
+                                                  canDo ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800",
+                                                )}
+                                              >
+                                                <Icon className="h-4 w-4" />
+                                                <span className="capitalize">{prof}</span>
+                                                <Badge variant="outline">
+                                                  {userLevel}/{requiredLevel}
+                                                </Badge>
+                                              </div>
+                                            )
+                                          })}
+                                        </div>
+                                      </div>
+
+                                      {task.resources && task.resources.length > 0 && (
+                                        <div>
+                                          <h3 className="text-lg font-semibold mb-2">Resources Required</h3>
+                                          <ResourceTracker
+                                            resources={task.resources}
+                                            taskId={task._id || task.id}
+                                            subtaskId={null}
+                                            canEdit={userAssignedToTask}
+                                            onCompleteTask={(taskId) => {
+                                              // Завершаем основную задачу при 100% ресурсов
+                                              if (completeSubtask) {
+                                                completeSubtask(taskId, 0) // 0 означает основную задачу
+                                              }
+                                            }}
+                                            title=""
+                                            updateResourceContribution={updateResourceContribution}
+                                          />
+                                        </div>
+                                      )}
+
+                                      {hasSubtasks && (
+                                        <div>
+                                          <h3 className="text-lg font-semibold mb-2">Subtasks</h3>
+                                                                      <SubtaskRenderer
+                              subtasks={task.subtasks}
+                              parentTask={task}
+                              taskId={task._id || task.id}
+                              userProfessions={userProfessions}
+                              claimSubtask={handleClaimSubtask}
+                              updateResourceContribution={updateResourceContribution}
+                              showOnlyAvailable={showOnlyAvailable}
+                              completeSubtask={completeSubtask}
+                            />
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </DialogContent>
+                              </Dialog>
                             </div>
                           </TableCell>
                         </TableRow>
+
                         {isExpanded && hasSubtasks && (
-                          <TableRow className="bg-gray-50">
-                            <TableCell colSpan={7} className="p-0">
-                              <div className="p-4 space-y-2">
-                                <h5 className="font-medium text-sm text-gray-700 mb-3">
-                                  Subtasks ({availableSubtasks.length}{" "}
-                                  {showOnlyAvailable ? "available" : `of ${task.subtasks.length}`})
-                                </h5>
-                                <div className="space-y-2">
-                                  <SubtaskRenderer
-                                    subtasks={task.subtasks}
-                                    parentTask={task}
-                                    taskId={task.id}
-                                    userProfessions={userProfessions}
-                                    mockUser={mockUser}
-                                    claimSubtask={claimSubtask}
-                                    updateResourceContribution={updateResourceContribution}
-                                    showOnlyAvailable={showOnlyAvailable}
-                                  />
-                                </div>
+                          <TableRow>
+                            <TableCell colSpan={7} className="bg-gray-50 p-0">
+                              <div className="p-4">
+                                <h4 className="font-semibold mb-3 text-gray-700">
+                                  Subtasks ({availableSubtasks.length} available)
+                                </h4>
+                                <SubtaskRenderer
+                                  subtasks={availableSubtasks}
+                                  parentTask={task}
+                                  taskId={task._id || task.id}
+                                  userProfessions={userProfessions}
+                                  claimSubtask={handleClaimSubtask}
+                                  updateResourceContribution={updateResourceContribution}
+                                  showOnlyAvailable={showOnlyAvailable}
+                                  completeSubtask={completeSubtask}
+                                />
                               </div>
                             </TableCell>
                           </TableRow>
@@ -601,6 +537,13 @@ export function TaskDashboard({
                   })}
                 </TableBody>
               </Table>
+
+              {sortedTasks.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  <p>No tasks found matching your criteria.</p>
+                  <p className="text-sm mt-2">Try adjusting your filters or check back later for new tasks.</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
