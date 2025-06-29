@@ -268,7 +268,7 @@ export class TaskController {
       await task.save();
       console.log('Task updated successfully!');
 
-      res.json({
+      return res.json({
         success: true,
         data: task,
         message: 'Задача успешно обновлена'
@@ -279,7 +279,7 @@ export class TaskController {
       if (error instanceof Error) {
         console.error('Stack trace:', error.stack);
       }
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: 'Ошибка сервера при обновлении задачи'
       });

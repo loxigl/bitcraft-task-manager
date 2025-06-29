@@ -32,9 +32,13 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UserModel = void 0;
 const mongoose_1 = __importStar(require("mongoose"));
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const types_1 = require("../types");
 const professionSchema = new mongoose_1.Schema({
     level: { type: Number, required: true, min: 0, max: 100, default: 0 }
@@ -42,9 +46,11 @@ const professionSchema = new mongoose_1.Schema({
 const userSchema = new mongoose_1.Schema({
     name: { type: String, required: true, unique: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true },
+    password: { type: String, required: true, minlength: 6 },
     avatar: { type: String, default: '/placeholder.svg' },
     level: { type: Number, required: true, min: 1, default: 1 },
     guild: { type: String, required: true, trim: true },
+    role: { type: String, enum: Object.values(types_1.UserRole), default: types_1.UserRole.MEMBER },
     professions: {
         type: Map,
         of: professionSchema,
@@ -63,7 +69,16 @@ const userSchema = new mongoose_1.Schema({
     timestamps: true,
     toJSON: {
         transform: function (doc, ret) {
-            ret.professions = Object.fromEntries(ret.professions);
+            if (ret.professions && ret.professions instanceof Map) {
+                ret.professions = Object.fromEntries(ret.professions);
+            }
+            else if (ret.professions && typeof ret.professions === 'object') {
+                ret.professions = ret.professions;
+            }
+            else {
+                ret.professions = {};
+            }
+            delete ret.password;
             return ret;
         }
     }
@@ -73,7 +88,11 @@ userSchema.index({ email: 1 });
 userSchema.index({ guild: 1 });
 userSchema.index({ level: -1 });
 userSchema.index({ reputation: -1 });
-userSchema.pre('save', function (next) {
+userSchema.pre('save', async function (next) {
+    if (this.isModified('password')) {
+        const salt = await bcryptjs_1.default.genSalt(10);
+        this.password = await bcryptjs_1.default.hash(this.password, salt);
+    }
     if (this.professions) {
         Object.values(types_1.ProfessionType).forEach(profession => {
             if (!this.professions.has(profession)) {
@@ -83,5 +102,8 @@ userSchema.pre('save', function (next) {
     }
     next();
 });
+userSchema.methods.comparePassword = async function (candidatePassword) {
+    return bcryptjs_1.default.compare(candidatePassword, this.password);
+};
 exports.UserModel = mongoose_1.default.model('User', userSchema);
 //# sourceMappingURL=User.js.map
