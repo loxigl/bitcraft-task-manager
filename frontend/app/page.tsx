@@ -65,7 +65,9 @@ export default function GuildCraftingDashboard() {
     deleteTask: apiDeleteTask,
     updateResourceContribution: apiUpdateResource,
     completeSubtask: apiCompleteSubtask,
-    refreshTask
+    refreshTask,
+    updateTaskStatus: apiUpdateTaskStatus,
+    softRefresh
   } = useApiTasks()
   
   const { currentUser, loading: userLoading, isLoggedIn } = useUser()
@@ -120,17 +122,15 @@ export default function GuildCraftingDashboard() {
   // Wrapper functions for task management with correct signatures
   const claimTask = async (taskId: number | string) => {
     const taskIdStr = typeof taskId === 'string' ? taskId : taskId.toString()
-    const userName = currentUser?.name || "Unknown User"
     // apiClaimTask уже обновляет локальное состояние - никаких дополнительных перезагрузок не нужно
-    await apiClaimTask(taskIdStr, userName)
+    await apiClaimTask(taskIdStr)
   }
 
   const claimSubtask = async (taskId: number | string, subtaskId: number | string) => {
     const taskIdStr = typeof taskId === 'string' ? taskId : taskId.toString()
     const subtaskIdStr = typeof subtaskId === 'string' ? subtaskId : subtaskId.toString()
-    const userName = currentUser?.name || "Unknown User"
     // apiClaimSubtask уже обновляет локальное состояние - никаких дополнительных перезагрузок не нужно
-    await apiClaimSubtask(taskIdStr, subtaskIdStr, userName)
+    await apiClaimSubtask(taskIdStr, subtaskIdStr)
   }
 
   const updateResourceContribution = (
@@ -140,9 +140,8 @@ export default function GuildCraftingDashboard() {
     quantity: number
   ) => {
     const taskIdStr = typeof taskId === 'string' ? taskId : taskId.toString()
-    const userName = currentUser?.name || "Unknown User"
     const subtaskIdStr = subtaskId ? (typeof subtaskId === 'string' ? subtaskId : subtaskId.toString()) : undefined
-    apiUpdateResource(taskIdStr, resourceName, quantity, userName, subtaskIdStr)
+    apiUpdateResource(taskIdStr, resourceName, quantity, undefined, subtaskIdStr)
   }
 
   const completeSubtask = async (taskId: number | string, subtaskId: number | string) => {
@@ -194,6 +193,12 @@ export default function GuildCraftingDashboard() {
             setEditingTask={setEditingTask}
             setIsCreateTaskOpen={setIsCreateTaskOpen}
             deleteTask={deleteTask}
+            claimSubtask={claimSubtask}
+            updateResourceContribution={updateResourceContribution}
+            completeSubtask={completeSubtask}
+            updateTaskStatus={apiUpdateTaskStatus}
+            userProfessions={userProfessions}
+            refreshTasks={softRefresh}
           />
         )
       case "my-tasks":
@@ -204,21 +209,16 @@ export default function GuildCraftingDashboard() {
             updateResourceContribution={updateResourceContribution}
             claimSubtask={claimSubtask}
             onTaskUpdate={() => {
-              // Невидимое обновление всех тасков в фоне без сброса UI состояния
-              allTasks.forEach(task => {
-                if (task._id || task.id) {
-                  const taskId = task._id || task.id?.toString() || ""
-                  if (taskId) {
-                    setTimeout(() => refreshTask(taskId), 100)
-                  }
-                }
-              })
+              // Локальное состояние уже обновляется в API функциях
+              // Дополнительные обновления не нужны
             }}
             completeSubtask={completeSubtask}
             onEditTask={(task) => {
               setEditingTask(task)
               setIsCreateTaskOpen(true)
             }}
+            updateTaskStatus={apiUpdateTaskStatus}
+            refreshTasks={softRefresh}
           />
         )
       default:
@@ -271,15 +271,10 @@ export default function GuildCraftingDashboard() {
                   setCurrentView={setCurrentView}
                   setIsCreateTaskOpen={() => handleCreateTask('guild')}
                   onTaskUpdate={() => {
-                    // Невидимое обновление guild тасков в фоне
-                    guildTasks.forEach(task => {
-                      const taskId = task._id || task.id?.toString() || ""
-                      if (taskId) {
-                        setTimeout(() => refreshTask(taskId), 100)
-                      }
-                    })
+                    // Локальное состояние уже обновляется в API функциях
                   }}
                   completeSubtask={completeSubtask}
+                  refreshTasks={softRefresh}
                 />
               </TabsContent>
               
@@ -305,14 +300,10 @@ export default function GuildCraftingDashboard() {
                   setCurrentView={setCurrentView}
                   setIsCreateTaskOpen={() => handleCreateTask('member')}
                   onTaskUpdate={() => {
-                    // Невидимое обновление member тасков в фоне
-                    memberTasks.forEach(task => {
-                      const taskId = task._id || task.id?.toString() || ""
-                      if (taskId) {
-                        setTimeout(() => refreshTask(taskId), 100)
-                      }
-                    })
+                    // Локальное состояние уже обновляется в API функциях
                   }}
+                  completeSubtask={completeSubtask}
+                  refreshTasks={softRefresh}
                 />
               </TabsContent>
             </Tabs>

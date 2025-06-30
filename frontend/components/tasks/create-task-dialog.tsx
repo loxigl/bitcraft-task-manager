@@ -44,7 +44,7 @@ const ResourceForm = ({ resources, onAdd, onUpdate, onRemove, title = "Resources
         <p className="text-xs">No resources yet. Click "Add Resource" to get started.</p>
       </div>
     ) : (
-      <div className="space-y-3 max-h-32 overflow-y-auto">
+      <div className="space-y-3">
         {resources.map((resource: any, index: number) => (
           <div key={resource.id} className="border rounded p-3 bg-gray-50">
             <div className="grid grid-cols-4 gap-2 mb-2">
@@ -105,6 +105,7 @@ interface SubtaskFormProps {
   addSubtaskResource: (subtaskIndex: number) => void
   updateSubtaskResource: (subtaskIndex: number, resourceIndex: number, field: string, value: any) => void
   removeSubtaskResource: (subtaskIndex: number, resourceIndex: number) => void
+  getAvailableSubtasks: (currentIndex: number) => any[]
 }
 
 const SubtaskForm: React.FC<SubtaskFormProps> = ({
@@ -116,6 +117,7 @@ const SubtaskForm: React.FC<SubtaskFormProps> = ({
   addSubtaskResource,
   updateSubtaskResource,
   removeSubtaskResource,
+  getAvailableSubtasks,
 }) => (
   <div>
     <div className="flex items-center justify-between mb-3">
@@ -126,7 +128,7 @@ const SubtaskForm: React.FC<SubtaskFormProps> = ({
       </Button>
     </div>
 
-    <div className="space-y-4 max-h-96 overflow-y-auto">
+    <div className="space-y-4">
       {subtasks.map((subtask: any, index: number) => (
         <div key={subtask.id} className="border rounded-lg p-4 bg-gray-50">
           <div className="flex items-center justify-between mb-3">
@@ -181,6 +183,67 @@ const SubtaskForm: React.FC<SubtaskFormProps> = ({
                 onChange={(e) => updateSubtask(index, "shipTo", e.target.value)}
                 className="h-8 text-xs"
               />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <Label className="text-xs">Depends On (Must be completed first)</Label>
+              <Select 
+                value={subtask.dependencies?.[0]?.toString() || ""} 
+                onValueChange={(value) => {
+                  if (value === "" || value === "none") {
+                    updateSubtask(index, "dependencies", [])
+                  } else {
+                    // Find the subtask by ID string and get its actual ID
+                    const selectedSubtask = getAvailableSubtasks(index).find(st => st.id === value)
+                    if (selectedSubtask) {
+                      updateSubtask(index, "dependencies", [selectedSubtask.id])
+                    }
+                  }
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Select dependency..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No dependency</SelectItem>
+                  {getAvailableSubtasks(index).map((st) => (
+                    <SelectItem key={st.id} value={st.id}>
+                      {st.name || `Subtask ${st.index + 1}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Subtask Of (Parent)</Label>
+              <Select 
+                value={subtask.subtaskOf?.toString() || "null"} 
+                onValueChange={(value) => {
+                  if (value === "null" || value === "") {
+                    updateSubtask(index, "subtaskOf", null)
+                  } else {
+                    // Find the selected parent subtask
+                    const selectedParent = getAvailableSubtasks(index).find(st => st.id === value)
+                    if (selectedParent) {
+                      updateSubtask(index, "subtaskOf", selectedParent.id)
+                    }
+                  }
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Main Task" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="null">Main Task</SelectItem>
+                  {getAvailableSubtasks(index).map((st) => (
+                    <SelectItem key={st.id} value={st.id}>
+                      {st.name || `Subtask ${st.index + 1}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -316,6 +379,14 @@ export function CreateTaskDialog({
   const { toast } = useToast()
   const { currentUser } = useUser()
 
+  // Get available subtasks for dependency and parent selection
+  const getAvailableSubtasks = useCallback((currentIndex: number) => {
+    return subtasks
+      .map((subtask, index) => ({ ...subtask, index }))
+      .filter((_, index) => index !== currentIndex) // Don't include current subtask
+      .filter(st => st.name && st.name.trim() !== "") // Only show subtasks with names
+  }, [subtasks])
+
   // Обновляем состояния при изменении editingTask
   useEffect(() => {
     if (editingTask) {
@@ -341,6 +412,8 @@ export function CreateTaskDialog({
       setSubtasks(subtasks.map((subtask: any) => ({
         ...subtask,
         id: subtask.id || generateId(),
+        dependencies: subtask.dependencies || [],
+        subtaskOf: subtask.subtaskOf || null,
         resources: (subtask.resources || []).map((resource: any) => ({
           ...resource,
           id: resource.id || generateId()
@@ -411,6 +484,7 @@ export function CreateTaskDialog({
       completed: false,
       assignedTo: [],
       dependencies: [],
+      subtaskOf: null,
       shipTo: "",
       takeFrom: "",
       subtasks: []
@@ -433,15 +507,25 @@ export function CreateTaskDialog({
   const addSubtaskResource = useCallback((subtaskIndex: number) => {
     setSubtasks((prevSubtasks: any[]) => {
       const updated = [...prevSubtasks]
+      if (!updated[subtaskIndex]) {
+        return prevSubtasks
+      }
+      
       const currentResources = updated[subtaskIndex].resources || []
-      updated[subtaskIndex].resources = [...currentResources, { 
-        id: `resource-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // Стабильный уникальный ID
+      const newResource = { 
+        id: `resource-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, 
         name: "", 
         needed: 1, 
         gathered: 0, 
         unit: "", 
         contributors: {} 
-      }]
+      }
+      
+      updated[subtaskIndex] = {
+        ...updated[subtaskIndex],
+        resources: [...currentResources, newResource]
+      }
+      
       return updated
     })
   }, [])
@@ -449,10 +533,17 @@ export function CreateTaskDialog({
   const updateSubtaskResource = useCallback((subtaskIndex: number, resourceIndex: number, field: string, value: any) => {
     setSubtasks((prevSubtasks: any[]) => {
       const updated = [...prevSubtasks]
-      updated[subtaskIndex].resources[resourceIndex] = { 
-        ...updated[subtaskIndex].resources[resourceIndex], 
-        [field]: value 
+      if (!updated[subtaskIndex] || !updated[subtaskIndex].resources || !updated[subtaskIndex].resources[resourceIndex]) {
+        return prevSubtasks
       }
+      
+      updated[subtaskIndex] = {
+        ...updated[subtaskIndex],
+        resources: updated[subtaskIndex].resources.map((resource: any, index: number) => 
+          index === resourceIndex ? { ...resource, [field]: value } : resource
+        )
+      }
+      
       return updated
     })
   }, [])
@@ -460,7 +551,15 @@ export function CreateTaskDialog({
   const removeSubtaskResource = useCallback((subtaskIndex: number, resourceIndex: number) => {
     setSubtasks((prevSubtasks: any[]) => {
       const updated = [...prevSubtasks]
-      updated[subtaskIndex].resources = updated[subtaskIndex].resources.filter((_: any, i: number) => i !== resourceIndex)
+      if (!updated[subtaskIndex] || !updated[subtaskIndex].resources) {
+        return prevSubtasks
+      }
+      
+      updated[subtaskIndex] = {
+        ...updated[subtaskIndex],
+        resources: updated[subtaskIndex].resources.filter((_: any, i: number) => i !== resourceIndex)
+      }
+      
       return updated
     })
   }, [])
@@ -546,7 +645,7 @@ export function CreateTaskDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl">
             {editingTask ? "Edit Task" : `Create New ${taskType === 'guild' ? 'Guild' : 'Member'} Task`}
@@ -676,6 +775,7 @@ export function CreateTaskDialog({
               addSubtaskResource={addSubtaskResource}
               updateSubtaskResource={updateSubtaskResource}
               removeSubtaskResource={removeSubtaskResource}
+              getAvailableSubtasks={getAvailableSubtasks}
             />
           </div>
 

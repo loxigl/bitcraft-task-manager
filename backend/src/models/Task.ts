@@ -18,7 +18,7 @@ const resourceSchema = new Schema({
 }, { _id: false });
 
 const subtaskSchema = new Schema({
-  id: { type: Number, required: true },
+  id: { type: Schema.Types.Mixed, required: true }, // Support both String and Number IDs
   name: { type: String, required: true },
   completed: { type: Boolean, default: false },
   assignedTo: [{ type: String }],
@@ -32,7 +32,8 @@ const subtaskSchema = new Schema({
     of: Number,
     required: true
   },
-  dependencies: [{ type: Number }],
+  dependencies: [{ type: Schema.Types.Mixed }], // Support both String and Number IDs
+  subtaskOf: { type: Schema.Types.Mixed, default: null }, // Support both String and Number IDs
   description: { type: String, required: false },
   shipTo: { type: String, default: null },
   takeFrom: { type: String, default: null },

@@ -38,11 +38,13 @@ import { apiClient } from "@/lib/api-client"
 interface MyTasksProps {
   tasks: any[]
   userProfessions: any
-  updateResourceContribution: (taskId: string | number, subtaskId: number | null, resourceName: string, quantity: number) => void
-  claimSubtask: (taskId: string | number, subtaskId: number) => void
+  updateResourceContribution: (taskId: string | number, subtaskId: number | string | null, resourceName: string, quantity: number) => void
+  claimSubtask: (taskId: string | number, subtaskId: number | string) => void
   onTaskUpdate?: () => void
-  completeSubtask?: (taskId: string | number, subtaskId: number) => void
+  completeSubtask?: (taskId: string | number, subtaskId: number | string) => void
   onEditTask?: (task: any) => void
+  updateTaskStatus?: (taskId: string, status: string) => void
+  refreshTasks?: () => void
 }
 
 export function MyTasks({ 
@@ -52,7 +54,9 @@ export function MyTasks({
   claimSubtask,
   onTaskUpdate,
   completeSubtask,
-  onEditTask
+  onEditTask,
+  updateTaskStatus,
+  refreshTasks
 }: MyTasksProps) {
   const { currentUser } = useUser()
   const { toast } = useToast()
@@ -92,27 +96,32 @@ export function MyTasks({
   }
 
   const markTaskCompleted = async (taskId: string) => {
-    try {
-      const response = await apiClient.updateTask(taskId, { status: 'completed' })
-      if (response.success) {
-        toast({
-          title: "Task completed",
-          description: "Task has been marked as completed successfully"
-        })
-        onTaskUpdate?.()
-      } else {
+    if (updateTaskStatus) {
+      await updateTaskStatus(taskId, 'completed')
+    } else {
+      // Fallback to API client
+      try {
+        const response = await apiClient.updateTask(taskId, { status: 'completed' })
+        if (response.success) {
+          toast({
+            title: "Task completed",
+            description: "Task has been marked as completed successfully"
+          })
+          onTaskUpdate?.()
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Failed to update task",
+            description: response.message || "Please try again"
+          })
+        }
+      } catch (error) {
         toast({
           variant: "destructive",
-          title: "Failed to update task",
-          description: response.message || "Please try again"
+          title: "Error updating task",
+          description: "Please try again later"
         })
       }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error updating task",
-        description: "Please try again later"
-      })
     }
   }
 
@@ -205,6 +214,17 @@ export function MyTasks({
               </Select>
             )}
           </div>
+          {refreshTasks && (
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={refreshTasks}
+              className="flex items-center gap-2"
+            >
+              <Package className="h-4 w-4" />
+              Refresh
+            </Button>
+          )}
         </div>
       </div>
 
@@ -543,6 +563,28 @@ export function MyTasks({
                               </div>
                             </div>
                             
+                            {/* Task Status Control for Creators */}
+                            {updateTaskStatus && (
+                              <div className="pt-4 border-t">
+                                <h4 className="font-medium mb-3">Task Status</h4>
+                                <div className="flex gap-2">
+                                  <Select
+                                    value={task.status}
+                                    onValueChange={(status) => updateTaskStatus(task._id || task.id, status)}
+                                  >
+                                    <SelectTrigger className="w-40">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="open">Open</SelectItem>
+                                      <SelectItem value="in_progress">In Progress</SelectItem>
+                                      <SelectItem value="completed">Completed</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                            )}
+
                             {/* Edit/Delete Task Buttons */}
                             <div className="flex gap-2 pt-4 border-t">
                               {onEditTask && (
@@ -580,26 +622,18 @@ export function MyTasks({
                             
                             {task.subtasks && task.subtasks.length > 0 && (
                               <div>
-                                <h4 className="font-medium mb-3">Subtasks Overview</h4>
-                                <div className="space-y-2">
-                                  {task.subtasks.map((subtask: any) => (
-                                    <div key={subtask.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                                      <div className="flex items-center gap-2">
-                                        <span className={cn("text-sm", subtask.completed ? "line-through text-gray-500" : "")}>
-                                          {subtask.name}
-                                        </span>
-                                        {subtask.completed && (
-                                          <Badge variant="outline" className="text-green-600 bg-green-50 text-xs">
-                                            Done
-                                          </Badge>
-                                        )}
-                                      </div>
-                                      <span className="text-xs text-gray-500">
-                                        {subtask.assignedTo?.length || 0} assigned
-                                      </span>
-                                    </div>
-        ))}
-      </div>
+                                <h4 className="font-medium mb-3">Subtasks</h4>
+                                <SubtaskRenderer
+                                  subtasks={task.subtasks}
+                                  parentTask={task}
+                                  taskId={task._id || task.id}
+                                  userProfessions={userProfessions}
+                                  claimSubtask={claimSubtask}
+                                  updateResourceContribution={updateResourceContribution}
+                                  showOnlyAvailable={false}
+                                  level={0}
+                                  completeSubtask={completeSubtask}
+                                />
                               </div>
                             )}
                           </div>

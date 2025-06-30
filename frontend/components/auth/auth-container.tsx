@@ -7,9 +7,13 @@ import { RegisterForm } from "./register-form"
 export function AuthContainer() {
   const [isLogin, setIsLogin] = useState(true)
 
-  const handleSuccess = () => {
-    // Удаляем window.location.reload() - позволяем React обновить состояние естественно
-    // UserContext уже обновил currentUser, что должно автоматически переключить интерфейс
+  const handleLoginSuccess = () => {
+    // For login - do nothing, let UserContext handle the state update
+  }
+
+  const handleRegisterSuccess = () => {
+    // After successful registration, redirect to login
+    setIsLogin(true)
   }
 
   const switchToRegister = () => setIsLogin(false)
@@ -18,7 +22,7 @@ export function AuthContainer() {
   if (isLogin) {
     return (
       <LoginForm 
-        onSuccess={handleSuccess}
+        onSuccess={handleLoginSuccess}
         onSwitchToRegister={switchToRegister}
       />
     )
@@ -26,7 +30,7 @@ export function AuthContainer() {
 
   return (
     <RegisterForm 
-      onSuccess={handleSuccess}
+      onSuccess={handleRegisterSuccess}
       onSwitchToLogin={switchToLogin}
     />
   )

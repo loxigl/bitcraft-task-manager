@@ -1,5 +1,24 @@
 // Removed mockUser import - now using real user data
 
+// Helper function to find a subtask by ID in nested structure
+function findSubtaskById(subtasks: any[], id: number | string): any {
+  if (!subtasks) return null
+  
+  for (const subtask of subtasks) {
+    // Convert both to string for comparison to handle mixed types
+    if (String(subtask.id) === String(id)) {
+      return subtask
+    }
+    
+    const found = findSubtaskById(subtask.subtasks || [], id)
+    if (found) {
+      return found
+    }
+  }
+  
+  return null
+}
+
 export function canDoSubtask(subtask: any, task: any, userProfessions: any) {
   // Check user's profession levels
   const hasRequiredLevels = subtask.professions.every((prof: string) => {
@@ -8,13 +27,16 @@ export function canDoSubtask(subtask: any, task: any, userProfessions: any) {
     return userLevel >= requiredLevel
   })
 
-  // Check dependency completion
-  const dependenciesCompleted = subtask.dependencies.every((depId: number) => {
-    const findDep = (list: any[]) =>
-      list?.find((st) => st.id === depId) || list?.flatMap((st) => st.subtasks || []).find((st) => st.id === depId)
-    const dependency = findDep(task.subtasks)
-    return dependency && dependency.completed
-  })
+  // Check dependency completion (dependencies must be completed before this subtask can start)
+  // If no dependencies, this returns true (empty array = no blocking dependencies)
+  const dependenciesCompleted = !subtask.dependencies || subtask.dependencies.length === 0 || 
+    subtask.dependencies.every((depId: number | string) => {
+      const dependency = findSubtaskById(task.subtasks, depId)
+      return dependency && dependency.completed
+    })
+
+  // Parent-child relationships don't block children - children can be done independently
+  // Only dependencies and profession levels matter for availability
 
   return hasRequiredLevels && dependenciesCompleted
 }
@@ -27,6 +49,40 @@ export function canDoAnySubtask(subtasks: any[], parentTask: any, userProfession
     const canDoNested = canDoAnySubtask(subtask.subtasks, parentTask, userProfessions)
     return canDoThis || canDoNested
   })
+}
+
+// Build hierarchical structure of subtasks based on subtaskOf relationships
+export function buildSubtaskHierarchy(subtasks: any[]): any[] {
+  if (!subtasks) return []
+
+  const subtaskMap = new Map()
+  const rootSubtasks: any[] = []
+
+  // First pass: create map of all subtasks
+  subtasks.forEach(subtask => {
+    subtaskMap.set(subtask.id, { ...subtask, children: [] })
+  })
+
+  // Second pass: build hierarchy
+  subtasks.forEach(subtask => {
+    const subtaskWithChildren = subtaskMap.get(subtask.id)
+    
+    if (subtask.subtaskOf) {
+      // This is a child subtask
+      const parent = subtaskMap.get(subtask.subtaskOf)
+      if (parent) {
+        parent.children.push(subtaskWithChildren)
+      } else {
+        // Parent not found, treat as root
+        rootSubtasks.push(subtaskWithChildren)
+      }
+    } else {
+      // This is a root subtask
+      rootSubtasks.push(subtaskWithChildren)
+    }
+  })
+
+  return rootSubtasks
 }
 
 export function getAllAvailableSubtasks(subtasks: any[], parentTask: any, userProfessions: any, level = 0): any[] {

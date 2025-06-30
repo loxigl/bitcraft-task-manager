@@ -12,12 +12,12 @@ import { cn } from "@/lib/utils"
 interface ResourceTrackerProps {
   resources: any[]
   taskId: string | number
-  subtaskId?: number | null
+  subtaskId?: number | string | null
   canEdit?: boolean
   title?: string
-  updateResourceContribution: (taskId: string | number, subtaskId: number | null, resourceName: string, quantity: number) => void
+  updateResourceContribution: (taskId: string | number, subtaskId: number | string | null, resourceName: string, quantity: number) => void
   onCompleteTask?: (taskId: string | number) => void
-  onCompleteSubtask?: (taskId: string | number, subtaskId: number) => void
+  onCompleteSubtask?: (taskId: string | number, subtaskId: number | string) => void
 }
 
 export function ResourceTracker({

@@ -52,12 +52,13 @@ interface TaskDashboardProps {
   tasks: any[]
   userProfessions: any
   claimTask: (taskId: string | number) => void
-  claimSubtask: (taskId: string | number, subtaskId: number) => void
-  updateResourceContribution: (taskId: string | number, subtaskId: number | null, resourceName: string, quantity: number) => void
+  claimSubtask: (taskId: string | number, subtaskId: number | string) => void
+  updateResourceContribution: (taskId: string | number, subtaskId: number | string | null, resourceName: string, quantity: number) => void
   setCurrentView: (view: string) => void
   setIsCreateTaskOpen: (open: boolean) => void
   onTaskUpdate?: () => void
-  completeSubtask?: (taskId: string | number, subtaskId: number) => void
+  completeSubtask?: (taskId: string | number, subtaskId: number | string) => void
+  refreshTasks?: () => void
 }
 
 export function TaskDashboard({
@@ -70,6 +71,7 @@ export function TaskDashboard({
   setIsCreateTaskOpen,
   onTaskUpdate,
   completeSubtask,
+  refreshTasks,
 }: TaskDashboardProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("open")
@@ -151,7 +153,7 @@ export function TaskDashboard({
     onTaskUpdate?.()
   }
 
-  const handleClaimSubtask = async (taskId: string | number, subtaskId: number) => {
+  const handleClaimSubtask = async (taskId: string | number, subtaskId: number | string) => {
     await claimSubtask(taskId, subtaskId)
     // Основные функции уже обновляют состояние, вызываем onTaskUpdate для дополнительной синхронизации  
     onTaskUpdate?.()
@@ -233,8 +235,23 @@ export function TaskDashboard({
         {/* Tasks Table */}
         <Card className="lg:col-span-3">
           <CardHeader>
-            <CardTitle>Available Tasks</CardTitle>
-            <CardDescription>{sortedTasks.length} tasks found</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Available Tasks</CardTitle>
+                <CardDescription>{sortedTasks.length} tasks found</CardDescription>
+              </div>
+              {refreshTasks && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={refreshTasks}
+                  className="flex items-center gap-2"
+                >
+                  <Clock className="h-4 w-4" />
+                  Refresh
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -476,12 +493,6 @@ export function TaskDashboard({
                                             taskId={task._id || task.id}
                                             subtaskId={null}
                                             canEdit={userAssignedToTask}
-                                            onCompleteTask={(taskId) => {
-                                              // Завершаем основную задачу при 100% ресурсов
-                                              if (completeSubtask) {
-                                                completeSubtask(taskId, 0) // 0 означает основную задачу
-                                              }
-                                            }}
                                             title=""
                                             updateResourceContribution={updateResourceContribution}
                                           />

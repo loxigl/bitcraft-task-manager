@@ -56,13 +56,14 @@ export interface Resource {
 }
 
 export interface Subtask {
-  id: number;
+  id: number | string;
   name: string;
   completed: boolean;
   assignedTo: string[];
   professions: ProfessionType[];
   levels: Map<ProfessionType, number>;
-  dependencies: number[];
+  dependencies: (number | string)[];
+  subtaskOf: number | string | null;
   description: string;
   shipTo: string | null;
   takeFrom: string | null;

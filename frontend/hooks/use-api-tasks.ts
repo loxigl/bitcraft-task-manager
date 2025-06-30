@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { apiClient, type Task, type ApiResponse } from "@/lib/api-client"
 import { useToast } from "@/hooks/use-toast"
+import { useUser } from "@/contexts/UserContext"
 
 // Helper function to normalize task ID for consistency
 const normalizeTask = (task: Task): Task => {
@@ -24,6 +25,7 @@ export function useApiTasks() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
+  const { currentUser } = useUser()
 
   const showError = (message: string) => {
     setError(message)
@@ -63,9 +65,15 @@ export function useApiTasks() {
   }
 
   // Назначение/снятие с задачи
-  const claimTask = async (taskId: string, userName: string) => {
+  const claimTask = async (taskId: string, userName?: string) => {
+    const userNameToUse = userName || currentUser?.name || ''
+    if (!userNameToUse) {
+      showError("User not logged in")
+      return
+    }
+    
     try {
-      const response = await apiClient.claimTask(taskId, userName)
+      const response = await apiClient.claimTask(taskId, userNameToUse)
       
       if (response.success) {
         const normalizedTask = normalizeTask(response.data)
@@ -85,9 +93,15 @@ export function useApiTasks() {
   }
 
   // Назначение/снятие с подзадачи
-  const claimSubtask = async (taskId: string, subtaskId: string, userName: string) => {
+  const claimSubtask = async (taskId: string, subtaskId: string, userName?: string) => {
+    const userNameToUse = userName || currentUser?.name || ''
+    if (!userNameToUse) {
+      showError("User not logged in")
+      return
+    }
+    
     try {
-      const response = await apiClient.claimSubtask(taskId, subtaskId, userName)
+      const response = await apiClient.claimSubtask(taskId, subtaskId, userNameToUse)
       
       if (response.success) {
         const normalizedTask = normalizeTask(response.data)
@@ -151,15 +165,21 @@ export function useApiTasks() {
     taskId: string,
     resourceName: string,
     quantity: number,
-    userName: string,
+    userName?: string,
     subtaskId?: string
   ) => {
+    const userNameToUse = userName || currentUser?.name || ''
+    if (!userNameToUse) {
+      showError("User not logged in")
+      return
+    }
+    
     try {
       const response = await apiClient.updateResourceContribution(
         taskId,
         resourceName,
         quantity,
-        userName,
+        userNameToUse,
         subtaskId
       )
       
@@ -221,6 +241,45 @@ export function useApiTasks() {
     }
   }
 
+  // Обновление статуса задачи
+  const updateTaskStatus = async (taskId: string, status: string) => {
+    try {
+      const response = await apiClient.updateTask(taskId, { status })
+      
+      if (response.success) {
+        const normalizedTask = normalizeTask(response.data)
+        // Обновляем локальное состояние
+        setTasks(prevTasks => 
+          prevTasks.map(task => 
+            (task._id === taskId || task.id?.toString() === taskId) ? normalizedTask : task
+          )
+        )
+        showSuccess("Task status updated")
+      } else {
+        showError(response.message || "Failed to update task status")
+      }
+    } catch (err) {
+      showError("Error updating task status")
+    }
+  }
+
+  // Мягкий рефреш - обновляет данные без полной перезагрузки
+  const softRefresh = async () => {
+    try {
+      const response = await apiClient.getAllTasks()
+      if (response.success && Array.isArray(response.data)) {
+        const normalizedTasks = response.data.map(normalizeTask)
+        setTasks(normalizedTasks)
+        showSuccess("Tasks refreshed")
+      } else {
+        showError("Failed to refresh tasks")
+      }
+    } catch (err) {
+      console.error('Error during soft refresh:', err)
+      showError("Error refreshing tasks")
+    }
+  }
+
   return {
     tasks,
     loading,
@@ -233,5 +292,7 @@ export function useApiTasks() {
     updateResourceContribution,
     completeSubtask,
     refreshTask,
+    updateTaskStatus,
+    softRefresh,
   }
 } 

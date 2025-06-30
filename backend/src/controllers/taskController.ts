@@ -131,14 +131,16 @@ export class TaskController {
 
       console.log('Processing subtasks...');
       // Обрабатываем подзадачи рекурсивно
-      const processSubtasks = (subtasks: any[], startId = 1): any[] => {
-        let currentId = startId;
+      const processSubtasks = (subtasks: any[]): any[] => {
         return subtasks.map(subtask => {
           const processedSubtask = {
             ...subtask,
-            id: currentId++,
+            // Keep existing ID if provided, otherwise generate a unique one
+            id: subtask.id || `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             completed: false,
             assignedTo: [],
+            dependencies: subtask.dependencies || [],
+            subtaskOf: subtask.subtaskOf || null,
             resources: subtask.resources?.map((resource: any) => ({
               ...resource,
               gathered: 0,
@@ -147,8 +149,7 @@ export class TaskController {
           };
           
           if (subtask.subtasks) {
-            processedSubtask.subtasks = processSubtasks(subtask.subtasks, currentId);
-            currentId += subtask.subtasks.length;
+            processedSubtask.subtasks = processSubtasks(subtask.subtasks);
           }
           
           return processedSubtask;
@@ -236,14 +237,16 @@ export class TaskController {
 
       // Обрабатываем подзадачи если они переданы
       if (taskData.subtasks) {
-        const processSubtasks = (subtasks: any[], startId = 1): any[] => {
-          let currentId = startId;
+        const processSubtasks = (subtasks: any[]): any[] => {
           return subtasks.map(subtask => {
             const processedSubtask = {
               ...subtask,
-              id: subtask.id || currentId++,
+              // Keep existing ID if provided, otherwise generate a unique one
+              id: subtask.id || `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
               completed: subtask.completed || false,
               assignedTo: subtask.assignedTo || [],
+              dependencies: subtask.dependencies || [],
+              subtaskOf: subtask.subtaskOf || null,
               resources: subtask.resources?.map((resource: any) => ({
                 ...resource,
                 gathered: resource.gathered || 0,
@@ -254,8 +257,7 @@ export class TaskController {
             };
             
             if (subtask.subtasks) {
-              processedSubtask.subtasks = processSubtasks(subtask.subtasks, currentId);
-              currentId += subtask.subtasks.length;
+              processedSubtask.subtasks = processSubtasks(subtask.subtasks);
             }
             
             return processedSubtask;
@@ -379,7 +381,7 @@ export class TaskController {
       // Рекурсивно ищем подзадачу
       const findAndUpdateSubtask = (subtasks: any[]): boolean => {
         for (const subtask of subtasks) {
-          if (subtask.id === parseInt(subtaskId!)) {
+          if (String(subtask.id) === String(subtaskId)) {
             const isAssigned = subtask.assignedTo.includes(userName);
             
             if (isAssigned) {
@@ -451,7 +453,7 @@ export class TaskController {
       // Рекурсивно ищем подзадачу и отмечаем как завершенную
       const findAndCompleteSubtask = (subtasks: any[]): boolean => {
         for (const subtask of subtasks) {
-          if (subtask.id === parseInt(subtaskId!)) {
+          if (String(subtask.id) === String(subtaskId)) {
             if (subtask.completed) {
               subtask.status = 'open';
               subtask.completed = false;
@@ -545,7 +547,7 @@ export class TaskController {
       if (subtaskId) {
         const findResourceInSubtasks = (subtasks: any[]): any => {
           for (const subtask of subtasks) {
-            if (subtask.id === parseInt(subtaskId)) {
+            if (String(subtask.id) === String(subtaskId)) {
               return subtask.resources.find((r: any) => r.name === resourceName);
             }
             if (subtask.subtasks) {
