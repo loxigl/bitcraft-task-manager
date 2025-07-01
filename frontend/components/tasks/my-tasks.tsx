@@ -67,8 +67,34 @@ export function MyTasks({
   const [statusFilter, setStatusFilter] = useState("all") // Для created tab
   const [activeTab, setActiveTab] = useState("assigned")
   
+  // Функция для проверки назначения пользователя на задачу или её подзадачи
+  const isUserAssignedToTaskOrSubtasks = (task: any, userName: string): boolean => {
+    // Проверяем основную задачу
+    if (isUserAssigned(task.assignedTo, userName)) {
+      return true
+    }
+    
+    // Рекурсивно проверяем все подзадачи
+    const checkSubtasks = (subtasks: any[]): boolean => {
+      if (!subtasks || subtasks.length === 0) return false
+      
+      for (const subtask of subtasks) {
+        if (isUserAssigned(subtask.assignedTo, userName)) {
+          return true
+        }
+        // Проверяем вложенные подзадачи
+        if (subtask.subtasks && checkSubtasks(subtask.subtasks)) {
+          return true
+        }
+      }
+      return false
+    }
+    
+    return checkSubtasks(task.subtasks || [])
+  }
+
   const userTasks = tasks.filter((task) => 
-    isUserAssigned(task.assignedTo, currentUserName) && task.status !== 'completed'
+    isUserAssignedToTaskOrSubtasks(task, currentUserName) && task.status !== 'completed'
   )
   
   const createdTasks = tasks.filter((task) => 

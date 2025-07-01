@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { apiClient, type Task, type ApiResponse } from "@/lib/api-client"
 import { useToast } from "@/hooks/use-toast"
 import { useUser } from "@/contexts/UserContext"
@@ -43,8 +43,8 @@ export function useApiTasks() {
     })
   }
 
-  // Загрузка всех задач
-  const loadTasks = async () => {
+  // Загрузка всех задач (мемоизированная для стабильности)
+  const loadTasks = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -62,7 +62,7 @@ export function useApiTasks() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   // Назначение/снятие с задачи
   const claimTask = async (taskId: string, userName?: string) => {

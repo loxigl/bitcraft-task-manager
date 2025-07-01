@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -50,7 +50,7 @@ export function SubtaskRenderer({
   const { currentUser } = useUser()
   const currentUserName = currentUser?.name || ""
 
-  const toggleSubtaskExpansion = (subtaskKey: string) => {
+  const toggleSubtaskExpansion = useCallback((subtaskKey: string) => {
     const newExpanded = new Set(expandedSubtasks)
     if (newExpanded.has(subtaskKey)) {
       newExpanded.delete(subtaskKey)
@@ -58,7 +58,7 @@ export function SubtaskRenderer({
       newExpanded.add(subtaskKey)
     }
     setExpandedSubtasks(newExpanded)
-  }
+  }, [expandedSubtasks])
 
   if (!subtasks) return null
 
@@ -73,8 +73,8 @@ export function SubtaskRenderer({
     return null
   }
 
-  // Function to build hierarchical structure and sort by availability
-  const buildAndSortSubtasks = (subtasks: any[]): any[] => {
+  // Function to build hierarchical structure and sort by availability (memoized)
+  const buildAndSortSubtasks = useMemo(() => (subtasks: any[]): any[] => {
     // Separate top-level subtasks and nested ones
     const topLevelSubtasks = subtasks.filter(subtask => !subtask.subtaskOf || subtask.subtaskOf === "main")
     const nestedSubtasks = subtasks.filter(subtask => subtask.subtaskOf && subtask.subtaskOf !== "main")
@@ -150,7 +150,7 @@ export function SubtaskRenderer({
     }
 
     return sortByAvailability(hierarchy)
-  }
+  }, [parentTask, userProfessions])
 
   // Render individual subtask with its children
   const renderSubtask = (subtask: any, depth: number = 0): JSX.Element => {
@@ -501,7 +501,7 @@ export function SubtaskRenderer({
     )
   }
 
-  const sortedSubtasks = buildAndSortSubtasks(subtasks)
+  const sortedSubtasks = useMemo(() => buildAndSortSubtasks(subtasks), [buildAndSortSubtasks, subtasks])
 
   return (
     <div className="space-y-1">

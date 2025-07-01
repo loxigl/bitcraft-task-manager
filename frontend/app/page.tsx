@@ -89,14 +89,19 @@ export default function GuildCraftingDashboard() {
     }
   }, [currentUser])
 
-  // Auto-refresh tasks every 30 seconds
+  // Auto-refresh tasks every 5 minutes instead of 30 seconds for better performance
   useEffect(() => {
     if (currentUser) {
+      console.log('Setting up auto-refresh every 5 minutes...')
       const interval = setInterval(() => {
+        console.log('Auto-refreshing tasks...')
         loadTasks()
-      }, 30000) // 30 seconds
+      }, 300000) // 5 minutes
       
-      return () => clearInterval(interval)
+      return () => {
+        console.log('Clearing auto-refresh interval')
+        clearInterval(interval)
+      }
     }
   }, [currentUser, loadTasks])
 

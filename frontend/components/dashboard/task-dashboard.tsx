@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -74,7 +74,7 @@ export function TaskDashboard({
   refreshTasks,
 }: TaskDashboardProps) {
   const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("open")
+  const [statusFilter, setStatusFilter] = useState("active")
   const [professionFilter, setProfessionFilter] = useState("all")
   const [showOnlyAvailable, setShowOnlyAvailable] = useState(false)
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" })
@@ -96,7 +96,10 @@ export function TaskDashboard({
 
   const filteredTasks = tasks.filter((task) => {
     const matchesSearch = task.name.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === "all" || task.status === statusFilter
+    const matchesStatus = 
+      statusFilter === "all" || 
+      task.status === statusFilter ||
+      (statusFilter === "active" && (task.status === "open" || task.status === "in_progress"))
     const matchesProfession = professionFilter === "all" || task.professions.includes(professionFilter)
 
     const matchesUserLevel =
@@ -146,18 +149,22 @@ export function TaskDashboard({
     return getAllAvailableSubtasks(task.subtasks, task, userProfessions)
   }
 
-  // Обертка для клейма с обновлением
-  const handleClaimTask = async (taskId: string | number) => {
+  // Обертка для клейма с обновлением (используем useCallback для оптимизации)
+  const handleClaimTask = useCallback(async (taskId: string | number) => {
     await claimTask(taskId)
-    // Основные функции уже обновляют состояние, вызываем onTaskUpdate для дополнительной синхронизации
-    onTaskUpdate?.()
-  }
+    // Вызываем onTaskUpdate только если он существует
+    if (onTaskUpdate) {
+      onTaskUpdate()
+    }
+  }, [claimTask, onTaskUpdate])
 
-  const handleClaimSubtask = async (taskId: string | number, subtaskId: number | string) => {
+  const handleClaimSubtask = useCallback(async (taskId: string | number, subtaskId: number | string) => {
     await claimSubtask(taskId, subtaskId)
-    // Основные функции уже обновляют состояние, вызываем onTaskUpdate для дополнительной синхронизации  
-    onTaskUpdate?.()
-  }
+    // Вызываем onTaskUpdate только если он существует
+    if (onTaskUpdate) {
+      onTaskUpdate()
+    }
+  }, [claimSubtask, onTaskUpdate])
 
   return (
     <div className="space-y-6">
@@ -192,6 +199,7 @@ export function TaskDashboard({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="active">Active (Open & In Progress)</SelectItem>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="open">Open</SelectItem>
                   <SelectItem value="in_progress">In Progress</SelectItem>
