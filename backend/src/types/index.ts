@@ -55,6 +55,8 @@ export interface Resource {
   contributors: Map<string, number>;
 }
 
+export type TemplateResource = Omit<Resource, 'gathered' | 'contributors'>;
+
 export interface Subtask {
   id: number | string;
   name: string;
@@ -69,6 +71,20 @@ export interface Subtask {
   takeFrom: string | null;
   resources: Resource[];
   subtasks?: Subtask[];
+}
+
+export interface TemplateSubtask {
+  id: number | string;
+  name: string;
+  professions: ProfessionType[];
+  levels: Map<ProfessionType, number>;
+  dependencies: (number | string)[];
+  subtaskOf: number | string | null;
+  description: string;
+  shipTo: string | null;
+  takeFrom: string | null;
+  resources: TemplateResource[];
+  subtasks?: TemplateSubtask[];
 }
 
 export interface Task {
@@ -94,17 +110,17 @@ export interface Task {
 export interface Template {
   id: string;
   name: string;
-  originalTaskId?: number;
+  originalTaskId?: number | null;
   professions: ProfessionType[];
   levels: Map<ProfessionType, number>;
   priority: Priority;
   description: string;
-  resources: Omit<Resource, 'gathered' | 'contributors'>[];
+  resources: TemplateResource[];
   createdBy: string;
   shipTo: string;
   takeFrom: string;
   taskType: TaskType;
-  subtasks: Omit<Subtask, 'completed' | 'assignedTo'>[];
+  subtasks: TemplateSubtask[];
   createdAt?: Date;
   updatedAt?: Date;
 }

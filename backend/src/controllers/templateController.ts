@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { TemplateModel } from '../models/Template';
 import { TaskModel } from '../models/Task';
-import { Template, TemplateRequest } from '../types';
+import { Template, TemplateRequest, TemplateResource, TemplateSubtask } from '../types';
 
 export class TemplateController {
   // Get all templates with filtering
@@ -190,7 +190,7 @@ export class TemplateController {
       const templateId = `template-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
       
       // Обработка ресурсов - удаляем gathered и contributors
-      const processResources = (resources: any[]) => {
+      const processResources = (resources: any[]): TemplateResource[] => {
         if (!resources || !Array.isArray(resources)) return [];
         return resources.map(resource => ({
           name: resource.name,
@@ -267,7 +267,7 @@ export class TemplateController {
       const newTemplate = new TemplateModel(template);
       await newTemplate.save();
       
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         data: newTemplate,
         message: 'Template created successfully'
@@ -354,7 +354,7 @@ export class TemplateController {
       // Если обновляются подзадачи
       if (updateData.subtasks && Array.isArray(updateData.subtasks)) {
         // Преобразуем подзадачи в правильный формат
-        const processedSubtasks = updateData.subtasks.map((subtask: any) => ({
+        const processedSubtasks: TemplateSubtask[] = updateData.subtasks.map((subtask: any) => ({
           id: subtask.id,
           name: subtask.name,
           professions: subtask.professions || [],
@@ -364,7 +364,7 @@ export class TemplateController {
           description: subtask.description || '',
           shipTo: subtask.shipTo || '',
           takeFrom: subtask.takeFrom || '',
-          resources: (subtask.resources || []).map((resource: any) => ({
+          resources: (subtask.resources || []).map((resource: any): TemplateResource => ({
             name: resource.name,
             needed: resource.needed,
             unit: resource.unit
