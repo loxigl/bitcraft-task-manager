@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useMemo } from "react"
+import { useState, useCallback, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -49,7 +49,7 @@ export function SubtaskRenderer({
   level = 0,
   completeSubtask,
 }: SubtaskRendererProps) {
-  const [expandedSubtasks, setExpandedSubtasks] = useState(new Set())
+  const [expandedSubtasks, setExpandedSubtasks] = useState<Set<string>>(new Set())
   const { currentUser } = useUser()
   const { toast } = useToast()
   const currentUserName = currentUser?.name || ""
@@ -88,9 +88,9 @@ export function SubtaskRenderer({
     }
     return null
   }
-
-  // Function to build hierarchical structure and sort by availability (memoized)
-  const buildAndSortSubtasks = useMemo(() => (subtasks: any[]): any[] => {
+  
+  // Вспомогательная функция для построения иерархии и сортировки
+  const buildHierarchyAndSort = (subtasks: any[]): any[] => {
     // Separate top-level subtasks and nested ones
     const topLevelSubtasks = subtasks.filter(subtask => !subtask.subtaskOf || subtask.subtaskOf === "main")
     const nestedSubtasks = subtasks.filter(subtask => subtask.subtaskOf && subtask.subtaskOf !== "main")
@@ -166,14 +166,83 @@ export function SubtaskRenderer({
     }
 
     return sortByAvailability(hierarchy)
-  }, [parentTask, userProfessions])
+  }
 
+  // Function to build hierarchical structure and sort by availability (memoized)
+  const buildAndSortSubtasks = useMemo(() => (subtasks: any[]): any[] => {
+    if (!subtasks) return []
+    
+    // Отдельная обработка для фильтра showOnlyAvailable
+    if (showOnlyAvailable) {
+      // Функция для сбора всех доступных подзадач на любом уровне вложенности в плоский список
+      const getAllAvailableSubtasks = (tasks: any[]): any[] => {
+        if (!tasks || tasks.length === 0) return []
+        
+        const availableSubtasks: any[] = []
+        
+        // Рекурсивно обходим все подзадачи
+        const processSubtasks = (subtasks: any[]) => {
+          if (!subtasks || subtasks.length === 0) return
+          
+          subtasks.forEach(subtask => {
+            // Проверяем доступность подзадачи
+            const canDo = canDoSubtask(subtask, parentTask, userProfessions)
+            const isCompleted = subtask.completed
+            
+            // Если подзадача доступна или завершена - добавляем её в список
+            if (canDo || isCompleted) {
+              // Создаем копию подзадачи, сохраняя оригинальные связи
+              const subtaskCopy = {
+                ...subtask,
+                originalHierarchyInfo: {
+                  subtaskOf: subtask.subtaskOf,
+                  id: subtask.id,
+                  name: subtask.name
+                },
+                // Преобразуем все подзадачи в "корневые" для плоской структуры
+                subtaskOf: "main"
+              }
+              availableSubtasks.push(subtaskCopy)
+            }
+            
+            // Проверяем вложенные подзадачи
+            if (subtask.subtasks && subtask.subtasks.length > 0) {
+              processSubtasks(subtask.subtasks)
+            }
+          })
+        }
+        
+        processSubtasks(tasks)
+        return availableSubtasks
+      }
+      
+      // Получаем плоский список всех доступных подзадач
+      const allAvailableSubtasks = getAllAvailableSubtasks(subtasks)
+      
+      // Возвращаем список как есть, без создания дополнительной иерархии
+      return allAvailableSubtasks.sort((a, b) => {
+        // Сортируем по имени для удобства
+        if (a.name < b.name) return -1
+        if (a.name > b.name) return 1
+        return 0
+      })
+    }
+    
+    // Если фильтр не включен, используем стандартную логику
+    return buildHierarchyAndSort(subtasks)
+  }, [parentTask, userProfessions, showOnlyAvailable])
+  
   // Render individual subtask with its children
-  const renderSubtask = (subtask: any, depth: number = 0): JSX.Element => {
+  const renderSubtask = (subtask: any, depth: number = 0): JSX.Element | null => {
     const canDo = canDoSubtask(subtask, parentTask, userProfessions)
     const subtaskKey = `${taskId}-${subtask.id}`
     const isExpanded = expandedSubtasks.has(subtaskKey)
-    const hasChildren = subtask.children && subtask.children.length > 0
+    
+    // При использовании showOnlyAvailable у нас плоская структура
+    const hasChildren = showOnlyAvailable 
+      ? false // В плоской структуре нет вложенности
+      : (subtask.children && subtask.children.length > 0)
+      
     const userAssigned = isUserAssigned(subtask.assignedTo, currentUserName)
     const hasAssignees = Array.isArray(subtask.assignedTo) ? subtask.assignedTo.length > 0 : !!subtask.assignedTo
 
@@ -189,11 +258,32 @@ export function SubtaskRenderer({
     const hasUnmetDependencies = dependencyInfo.some((dep: any) => !dep.completed)
     const resourceProgress = calculateResourceProgress(subtask.resources)
 
-    if (showOnlyAvailable && !canDo && !subtask.completed) {
+    // При фильтрации showOnlyAvailable мы уже отфильтровали недоступные подзадачи
+    // А в обычном режиме используем стандартную логику
+    if (!showOnlyAvailable && !canDo && !subtask.completed && !hasChildren) {
       return null
     }
 
-    const indentStyle = { paddingLeft: `${depth * 24}px` }
+    // При фильтрации showOnlyAvailable показываем информацию об иерархии
+    let hierarchyInfoElement = null
+    if (showOnlyAvailable && subtask.originalHierarchyInfo) {
+      const origInfo = subtask.originalHierarchyInfo
+      if (origInfo.subtaskOf && origInfo.subtaskOf !== "main") {
+        // Находим родителя в оригинальной структуре
+        const parentSubtask = findSubtaskById(parentTask.subtasks, origInfo.subtaskOf)
+        if (parentSubtask) {
+          hierarchyInfoElement = (
+            <div className="text-xs text-gray-500 mb-1">
+              <span className="text-blue-500">⤴️ Parent subtask:</span> {parentSubtask.name}
+            </div>
+          )
+        }
+      }
+    }
+
+    const indentStyle = { 
+      paddingLeft: showOnlyAvailable ? '0px' : `${depth * 24}px` 
+    }
 
     return (
       <div key={subtask.id} className="space-y-1">
@@ -211,20 +301,22 @@ export function SubtaskRenderer({
           )}
         >
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            {subtask.subtaskOf && subtask.subtaskOf !== "main" && (
+            {!showOnlyAvailable && subtask.subtaskOf && subtask.subtaskOf !== "main" && (
               <div className="flex items-center text-blue-400">
                 <ArrowRight className="h-3 w-3" />
               </div>
             )}
 
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => toggleSubtaskExpansion(subtaskKey)}
-              className="h-6 w-6 p-0 shrink-0"
-            >
-              {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-            </Button>
+            {!showOnlyAvailable && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => toggleSubtaskExpansion(subtaskKey)}
+                className="h-6 w-6 p-0 shrink-0"
+              >
+                {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+              </Button>
+            )}
 
             <input
               type="checkbox"
@@ -252,6 +344,8 @@ export function SubtaskRenderer({
             />
 
             <div className="flex-1 min-w-0">
+              {hierarchyInfoElement}
+              
               <div className="flex items-center gap-2 mb-1">
                 <span
                   className={cn(
@@ -387,7 +481,8 @@ export function SubtaskRenderer({
           </div>
         </div>
 
-        {isExpanded && (
+        {/* При включенном фильтре не отображаем раскрываемые блоки */}
+        {!showOnlyAvailable && isExpanded && (
           <div style={{ paddingLeft: `${(depth + 1) * 24}px` }} className="space-y-3 p-4 bg-white rounded-lg border border-gray-100 ml-9">
             {subtask.description && (
               <div>
@@ -513,7 +608,7 @@ export function SubtaskRenderer({
               </div>
             )}
 
-            {/* Show nested subtasks only when expanded */}
+            {/* Show nested subtasks only when expanded and not in showOnlyAvailable mode */}
             {hasChildren && (
               <div className="space-y-2 border-l-2 border-gray-200 pl-4">
                 <h6 className="text-xs font-medium text-gray-600 mb-2">Nested Subtasks</h6>
