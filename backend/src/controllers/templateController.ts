@@ -195,10 +195,7 @@ export class TemplateController {
         return resources.map(resource => ({
           name: resource.name,
           needed: resource.needed,
-          unit: resource.unit,
-          // Добавляем пустые поля для соответствия типу Resource
-          gathered: 0,
-          contributors: new Map<string, number>()
+          unit: resource.unit
         }));
       };
       
@@ -252,7 +249,7 @@ export class TemplateController {
       const template: Partial<Template> = {
         id: templateId,
         name: templateData.name,
-        originalTaskId: templateData.taskId ? Number(templateData.taskId) : null,
+        originalTaskId: templateData.taskId ? Number(templateData.taskId) : undefined,
         description: templateSource.description || '',
         professions: templateSource.professions || [],
         levels: templateSource.levels || {},
@@ -270,7 +267,7 @@ export class TemplateController {
       const newTemplate = new TemplateModel(template);
       await newTemplate.save();
       
-      return res.status(201).json({
+      res.status(201).json({
         success: true,
         data: newTemplate,
         message: 'Template created successfully'
@@ -281,7 +278,7 @@ export class TemplateController {
       if (error instanceof Error) {
         console.error('Stack trace:', error.stack);
       }
-      return res.status(500).json({
+      res.status(500).json({
         success: false,
         message: 'Server error while creating template'
       });
@@ -357,35 +354,23 @@ export class TemplateController {
       // Если обновляются подзадачи
       if (updateData.subtasks && Array.isArray(updateData.subtasks)) {
         // Преобразуем подзадачи в правильный формат
-        const processedSubtasks = updateData.subtasks.map((subtask: any) => {
-          // Обработка ресурсов подзадачи
-          const processedResources = (subtask.resources || []).map((resource: any) => ({
+        const processedSubtasks = updateData.subtasks.map((subtask: any) => ({
+          id: subtask.id,
+          name: subtask.name,
+          professions: subtask.professions || [],
+          levels: subtask.levels || {},
+          dependencies: subtask.dependencies || [],
+          subtaskOf: subtask.subtaskOf,
+          description: subtask.description || '',
+          shipTo: subtask.shipTo || '',
+          takeFrom: subtask.takeFrom || '',
+          resources: (subtask.resources || []).map((resource: any) => ({
             name: resource.name,
             needed: resource.needed,
-            unit: resource.unit,
-            // Добавляем пустые поля для соответствия типу Resource
-            gathered: 0,
-            contributors: new Map<string, number>()
-          }));
-          
-          return {
-            id: subtask.id,
-            name: subtask.name,
-            professions: subtask.professions || [],
-            levels: subtask.levels || {},
-            dependencies: subtask.dependencies || [],
-            subtaskOf: subtask.subtaskOf,
-            description: subtask.description || '',
-            shipTo: subtask.shipTo || '',
-            takeFrom: subtask.takeFrom || '',
-            resources: processedResources,
-            // Добавляем обязательные поля для соответствия типу Subtask
-            completed: false,
-            assignedTo: []
-          };
-        });
+            unit: resource.unit
+          }))
+        }));
         
-        // @ts-ignore - Игнорируем ошибку типа, так как мы знаем, что структура правильная
         template.subtasks = processedSubtasks;
       }
       

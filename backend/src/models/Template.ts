@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
-import { Template } from '../types';
+import { Template, TaskType } from '../types';
 
 export interface TemplateDocument extends Omit<Template, 'id'>, Document {
   id: string;
@@ -62,8 +62,8 @@ const templateSchema = new Schema<TemplateDocument>({
   takeFrom: { type: String, required: false },
   taskType: {
     type: String,
-    enum: ['guild', 'member'],
-    default: 'member'
+    enum: Object.values(TaskType),
+    default: TaskType.MEMBER
   },
   subtasks: [subtaskSchema]
 }, {
