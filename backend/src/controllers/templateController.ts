@@ -249,7 +249,7 @@ export class TemplateController {
       const template: Partial<Template> = {
         id: templateId,
         name: templateData.name,
-        originalTaskId: templateData.taskId ? Number(templateData.taskId) : undefined,
+        originalTaskId: templateData.taskId ? Number(templateData.taskId) : null,
         description: templateSource.description || '',
         professions: templateSource.professions || [],
         levels: templateSource.levels || {},
@@ -278,7 +278,7 @@ export class TemplateController {
       if (error instanceof Error) {
         console.error('Stack trace:', error.stack);
       }
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: 'Server error while creating template'
       });
