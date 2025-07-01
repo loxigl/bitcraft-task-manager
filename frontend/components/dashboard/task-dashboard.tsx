@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import React, { useState, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -31,6 +31,8 @@ import {
   CalendarIcon,
   MapPin,
   Package,
+  Save,
+  AlertCircle,
 } from "lucide-react"
 import { format } from "date-fns"
 import { professionIcons } from "@/lib/constants"
@@ -47,6 +49,8 @@ import { ResourceTracker } from "@/components/resources/resource-tracker"
 import { SubtaskRenderer } from "@/components/tasks/subtask-renderer"
 import { useUser } from "@/contexts/UserContext"
 import { cn } from "@/lib/utils"
+import { SaveTemplateDialog } from "@/components/tasks/save-template-dialog"
+import { useToast } from "@/hooks/use-toast"
 
 interface TaskDashboardProps {
   tasks: any[]
@@ -82,7 +86,13 @@ export function TaskDashboard({
   const [selectedTask, setSelectedTask] = useState(null)
   
   const { currentUser } = useUser()
+  const { toast } = useToast()
   const currentUserName = currentUser?.name || ""
+
+  // Состояние для работы с шаблонами
+  const [saveTemplateDialogOpen, setSaveTemplateDialogOpen] = useState(false)
+  const [currentTemplateTaskId, setCurrentTemplateTaskId] = useState<number | null>(null)
+  const [currentTemplateName, setCurrentTemplateName] = useState("")
 
   const toggleTaskExpansion = (taskId: number) => {
     const newExpanded = new Set(expandedTasks)
@@ -165,6 +175,13 @@ export function TaskDashboard({
       onTaskUpdate()
     }
   }, [claimSubtask, onTaskUpdate])
+
+  // Функция для открытия диалога сохранения шаблона
+  const openSaveTemplateDialog = (taskId: string | number, name?: string) => {
+    setCurrentTemplateTaskId(Number(taskId))
+    setCurrentTemplateName(name || "")
+    setSaveTemplateDialogOpen(true)
+  }
 
   return (
     <div className="space-y-6">
@@ -311,9 +328,8 @@ export function TaskDashboard({
                       : !!task.assignedTo
 
                     return (
-                      <>
+                      <React.Fragment key={task.id || task._id}>  
                         <TableRow
-                          key={task.id}
                           className={cn(
                             "border-b",
                             !canDoTask && !canDoAnySubtask(task.subtasks, task, userProfessions) && showOnlyAvailable
@@ -446,6 +462,16 @@ export function TaskDashboard({
                               ) : (
                                 <div className="text-xs text-gray-500 px-2">Can't claim</div>
                               )}
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => openSaveTemplateDialog(task.id || task._id, task.name)}
+                                className="text-xs"
+                                title="Save as template"
+                              >
+                                <Save className="h-3 w-3 mr-1" />
+                                Save
+                              </Button>
                               <Dialog>
                                 <DialogTrigger asChild>
                                   <Button variant="outline" size="sm" onClick={() => setSelectedTask(task)}>
@@ -491,6 +517,18 @@ export function TaskDashboard({
                                             )
                                           })}
                                         </div>
+                                      </div>
+
+                                      <div className="flex justify-end">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => openSaveTemplateDialog(task.id, task.name)}
+                                          className="flex items-center gap-1"
+                                        >
+                                          <Save className="h-4 w-4" />
+                                          Save as Template
+                                        </Button>
                                       </div>
 
                                       {task.resources && task.resources.length > 0 && (
@@ -551,7 +589,7 @@ export function TaskDashboard({
                             </TableCell>
                           </TableRow>
                         )}
-                      </>
+                      </React.Fragment>
                     )
                   })}
                 </TableBody>
@@ -567,6 +605,22 @@ export function TaskDashboard({
           </CardContent>
         </Card>
       </div>
+
+      {/* Диалог сохранения шаблона */}
+      <SaveTemplateDialog 
+        isOpen={saveTemplateDialogOpen}
+        onClose={() => setSaveTemplateDialogOpen(false)}
+        taskId={currentTemplateTaskId!}
+        subtaskId={null}
+        defaultName={currentTemplateName}
+        onSuccess={() => {
+          toast({
+            title: "Template saved",
+            description: "Your template has been saved successfully"
+          })
+          if (refreshTasks) refreshTasks()
+        }}
+      />
     </div>
   )
 }

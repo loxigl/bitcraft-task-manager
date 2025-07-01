@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils"
 import { professionIcons } from "@/lib/constants"
 import { ResourceTracker } from "@/components/resources/resource-tracker"
 import { SubtaskRenderer } from "@/components/tasks/subtask-renderer"
+import { SaveTemplateDialog } from "@/components/tasks/save-template-dialog"
 import { 
   ChevronDown, 
   ChevronRight, 
@@ -30,7 +31,9 @@ import {
   Users,
   Calendar,
   Pencil,
-  Trash2
+  Trash2,
+  Save,
+  BookTemplate
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { apiClient } from "@/lib/api-client"
@@ -66,6 +69,12 @@ export function MyTasks({
   const [typeFilter, setTypeFilter] = useState("all") // Для assigned tab
   const [statusFilter, setStatusFilter] = useState("all") // Для created tab
   const [activeTab, setActiveTab] = useState("assigned")
+  
+  // Состояние для работы с шаблонами
+  const [saveTemplateDialogOpen, setSaveTemplateDialogOpen] = useState(false)
+  const [currentTemplateTaskId, setCurrentTemplateTaskId] = useState<number | null>(null)
+  const [currentTemplateSubtaskId, setCurrentTemplateSubtaskId] = useState<string | null>(null)
+  const [currentTemplateName, setCurrentTemplateName] = useState("")
   
   // Функция для проверки назначения пользователя на задачу или её подзадачи
   const isUserAssignedToTaskOrSubtasks = (task: any, userName: string): boolean => {
@@ -203,6 +212,14 @@ export function MyTasks({
         description: "Please try again later"
       })
     }
+  }
+
+  // Функция для открытия диалога сохранения шаблона
+  const openSaveTemplateDialog = (taskId: string | number, subtaskId?: string, name?: string) => {
+    setCurrentTemplateTaskId(Number(taskId))
+    setCurrentTemplateSubtaskId(subtaskId || null)
+    setCurrentTemplateName(name || "")
+    setSaveTemplateDialogOpen(true)
   }
 
   return (
@@ -451,6 +468,15 @@ export function MyTasks({
                                 <Users className="h-4 w-4" />
                                 Leave Task
                               </Button>
+                              
+                              <Button 
+                                variant="outline"
+                                onClick={() => openSaveTemplateDialog(task.id, undefined, task.name)}
+                                className="flex items-center gap-2"
+                              >
+                                <BookTemplate className="h-4 w-4" />
+                                Save as Template
+                              </Button>
                             </div>
                             
                             {task.status === 'completed' && (
@@ -464,7 +490,7 @@ export function MyTasks({
                                 </p>
                               </div>
                             )}
-                </div>
+                          </div>
                         </TabsContent>
                       </Tabs>
                     </CardContent>
@@ -673,6 +699,22 @@ export function MyTasks({
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Диалог сохранения шаблона */}
+      <SaveTemplateDialog 
+        isOpen={saveTemplateDialogOpen}
+        onClose={() => setSaveTemplateDialogOpen(false)}
+        taskId={currentTemplateTaskId!}
+        subtaskId={currentTemplateSubtaskId!}
+        defaultName={currentTemplateName}
+        onSuccess={() => {
+          toast({
+            title: "Template saved",
+            description: "Your template has been saved successfully"
+          })
+          if (refreshTasks) refreshTasks()
+        }}
+      />
     </div>
   )
 }

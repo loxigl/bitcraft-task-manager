@@ -9,6 +9,7 @@ import connectDB from './config/database';
 import taskRoutes from './routes/taskRoutes';
 import userRoutes from './routes/userRoutes';
 import authRoutes from './routes/authRoutes';
+import templateRoutes from './routes/templateRoutes';
 
 // Загружаем переменные окружения
 dotenv.config();
@@ -43,6 +44,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/templates', templateRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -64,6 +66,7 @@ app.get('/', (req, res) => {
       auth: '/api/auth',
       tasks: '/api/tasks',
       users: '/api/users',
+      templates: '/api/templates',
       health: '/health'
     }
   });

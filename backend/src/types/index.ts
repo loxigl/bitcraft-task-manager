@@ -91,6 +91,30 @@ export interface Task {
   updatedAt?: Date;
 }
 
+export interface Template {
+  id: string;
+  name: string;
+  originalTaskId?: number;
+  professions: ProfessionType[];
+  levels: Map<ProfessionType, number>;
+  priority: Priority;
+  description: string;
+  resources: Omit<Resource, 'gathered' | 'contributors'>[];
+  createdBy: string;
+  shipTo: string;
+  takeFrom: string;
+  taskType: TaskType;
+  subtasks: Omit<Subtask, 'completed' | 'assignedTo'>[];
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface TemplateRequest {
+  name: string;
+  taskId?: number;
+  subtaskId?: string;
+}
+
 export interface User {
   name: string;
   email: string;

@@ -16,12 +16,15 @@ import {
   MapPin,
   Package,
   ArrowRight,
+  Save
 } from "lucide-react"
 import { professionIcons } from "@/lib/constants"
 import { canDoSubtask, isUserAssigned, calculateResourceProgress } from "@/lib/utils/task-utils"
 import { ResourceTracker } from "@/components/resources/resource-tracker"
+import { SaveTemplateDialog } from "@/components/tasks/save-template-dialog"
 import { useUser } from "@/contexts/UserContext"
 import { cn } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
 
 interface SubtaskRendererProps {
   subtasks: any[]
@@ -48,7 +51,13 @@ export function SubtaskRenderer({
 }: SubtaskRendererProps) {
   const [expandedSubtasks, setExpandedSubtasks] = useState(new Set())
   const { currentUser } = useUser()
+  const { toast } = useToast()
   const currentUserName = currentUser?.name || ""
+  
+  // Состояние для сохранения шаблона
+  const [saveTemplateDialogOpen, setSaveTemplateDialogOpen] = useState(false)
+  const [currentTemplateSubtaskId, setCurrentTemplateSubtaskId] = useState<string | null>(null)
+  const [currentTemplateName, setCurrentTemplateName] = useState("")
 
   const toggleSubtaskExpansion = useCallback((subtaskKey: string) => {
     const newExpanded = new Set(expandedSubtasks)
@@ -59,6 +68,13 @@ export function SubtaskRenderer({
     }
     setExpandedSubtasks(newExpanded)
   }, [expandedSubtasks])
+  
+  // Функция для открытия диалога сохранения шаблона
+  const openSaveTemplateDialog = (subtaskId: string, name?: string) => {
+    setCurrentTemplateSubtaskId(subtaskId)
+    setCurrentTemplateName(name || "")
+    setSaveTemplateDialogOpen(true)
+  }
 
   if (!subtasks) return null
 
@@ -357,6 +373,17 @@ export function SubtaskRenderer({
                 )}
               </Button>
             )}
+
+            {/* Кнопка для сохранения подзадачи как шаблона */}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0 text-purple-600 hover:text-purple-700"
+              onClick={() => openSaveTemplateDialog(subtask.id, subtask.name)}
+              title="Save as template"
+            >
+              <Save className="h-3 w-3" />
+            </Button>
           </div>
         </div>
 
@@ -501,11 +528,26 @@ export function SubtaskRenderer({
     )
   }
 
-  const sortedSubtasks = useMemo(() => buildAndSortSubtasks(subtasks), [buildAndSortSubtasks, subtasks])
-
+  // Render all top-level subtasks
+  const sortedAndStructuredSubtasks = buildAndSortSubtasks(subtasks)
   return (
-    <div className="space-y-1">
-      {sortedSubtasks.map(subtask => renderSubtask(subtask, level))}
+    <div className="space-y-2 pb-3">
+      {sortedAndStructuredSubtasks.map(subtask => renderSubtask(subtask))}
+      
+      {/* Диалог сохранения шаблона */}
+      <SaveTemplateDialog 
+        isOpen={saveTemplateDialogOpen}
+        onClose={() => setSaveTemplateDialogOpen(false)}
+        taskId={Number(taskId)}
+        subtaskId={currentTemplateSubtaskId!}
+        defaultName={currentTemplateName}
+        onSuccess={() => {
+          toast({
+            title: "Subtask template saved",
+            description: "Your subtask template has been saved successfully"
+          })
+        }}
+      />
     </div>
   )
 }

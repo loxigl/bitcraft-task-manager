@@ -1,17 +1,20 @@
 "use client"
 
+import React, { Fragment } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ClipboardList, AlertCircle, Clock, CheckCircle, Edit, Trash2, ChevronDown, ChevronRight, Package } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ClipboardList, AlertCircle, Clock, CheckCircle, Edit, Trash2, ChevronDown, ChevronRight, Package, BookTemplate } from "lucide-react"
 import { format } from "date-fns"
 import { getStatusColor, getPriorityColor } from "@/lib/utils/task-utils"
 import { cn } from "@/lib/utils"
 import { SubtaskRenderer } from "@/components/tasks/subtask-renderer"
 import { ResourceTracker } from "@/components/resources/resource-tracker"
+import { TemplateManagement } from "@/components/admin/template-management"
 import { useState } from "react"
 
 interface AdminPanelProps {
@@ -107,147 +110,166 @@ export function AdminPanel({
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Task Management</CardTitle>
-          <CardDescription>Overview of all guild tasks</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Task</TableHead>
-                <TableHead>Assigned To</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Deadline</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tasks.map((task) => {
-                const taskKey = task._id || task.id
-                const isExpanded = expandedTasks.has(taskKey)
-                
-                return (
-                  <>
-                    <TableRow key={taskKey}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              const newExpanded = new Set(expandedTasks)
-                              if (isExpanded) {
-                                newExpanded.delete(taskKey)
-                              } else {
-                                newExpanded.add(taskKey)
-                              }
-                              setExpandedTasks(newExpanded)
-                            }}
-                            className="h-6 w-6 p-0"
-                          >
-                            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                          </Button>
-                          <div>
-                            <div>{task.name}</div>
-                            <div className="text-xs text-gray-500">
-                              Created by: {task.createdBy || "Unknown"}
-                            </div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {Array.isArray(task.assignedTo) && task.assignedTo.length > 0
-                          ? task.assignedTo.join(", ")
-                          : task.assignedTo || "Unassigned"}
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          value={task.status}
-                          onValueChange={(status) => updateTaskStatus(taskKey, status)}
-                        >
-                          <SelectTrigger className="w-32">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="open">Open</SelectItem>
-                            <SelectItem value="in_progress">In Progress</SelectItem>
-                            <SelectItem value="completed">Completed</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={getPriorityColor(task.priority)}>
-                          {task.priority}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{format(new Date(task.deadline), "MMM dd, yyyy")}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setEditingTask(task)
-                              setIsCreateTaskOpen(true)
-                            }}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={() => deleteTask(taskKey)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                    {isExpanded && (
-                      <TableRow>
-                        <TableCell colSpan={6} className="p-0">
-                          <div className="p-4 bg-gray-50 border-t">
-                            <div className="space-y-4">
-                              {task.subtasks && task.subtasks.length > 0 && (
-                                <div>
-                                  <h4 className="font-medium mb-2">Subtasks</h4>
-                                  <SubtaskRenderer
-                                    subtasks={task.subtasks}
-                                    parentTask={task}
-                                    taskId={taskKey}
-                                    userProfessions={userProfessions}
-                                    claimSubtask={claimSubtask}
-                                    updateResourceContribution={updateResourceContribution}
-                                    showOnlyAvailable={false}
-                                    completeSubtask={completeSubtask}
-                                  />
+      <Tabs defaultValue="tasks" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="tasks" className="flex items-center gap-2">
+            <ClipboardList className="h-4 w-4" />
+            Tasks
+          </TabsTrigger>
+          <TabsTrigger value="templates" className="flex items-center gap-2">
+            <BookTemplate className="h-4 w-4" />
+            Templates
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="tasks">
+          <Card>
+            <CardHeader>
+              <CardTitle>Task Management</CardTitle>
+              <CardDescription>Overview of all guild tasks</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Task</TableHead>
+                    <TableHead>Assigned To</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>Deadline</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {tasks.map((task) => {
+                    const taskKey = task._id || task.id
+                    const isExpanded = expandedTasks.has(taskKey)
+                    
+                    return (
+                      <Fragment key={taskKey}>
+                        <TableRow>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  const newExpanded = new Set(expandedTasks)
+                                  if (isExpanded) {
+                                    newExpanded.delete(taskKey)
+                                  } else {
+                                    newExpanded.add(taskKey)
+                                  }
+                                  setExpandedTasks(newExpanded)
+                                }}
+                                className="h-6 w-6 p-0"
+                              >
+                                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              </Button>
+                              <div>
+                                <div>{task.name}</div>
+                                <div className="text-xs text-gray-500">
+                                  Created by: {task.createdBy || "Unknown"}
                                 </div>
-                              )}
-                              {task.resources && task.resources.length > 0 && (
-                                <div>
-                                  <h4 className="font-medium mb-2">Resources</h4>
-                                  <ResourceTracker
-                                    resources={task.resources}
-                                    taskId={taskKey}
-                                    subtaskId={null}
-                                    canEdit={true}
-                                    title=""
-                                    updateResourceContribution={updateResourceContribution}
-                                    onCompleteTask={(taskId) => updateTaskStatus(taskId.toString(), 'completed')}
-                                  />
-                                </div>
-                              )}
+                              </div>
                             </div>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                          </TableCell>
+                          <TableCell>
+                            {Array.isArray(task.assignedTo) && task.assignedTo.length > 0
+                              ? task.assignedTo.join(", ")
+                              : task.assignedTo || "Unassigned"}
+                          </TableCell>
+                          <TableCell>
+                            <Select
+                              value={task.status}
+                              onValueChange={(status) => updateTaskStatus(taskKey, status)}
+                            >
+                              <SelectTrigger className="w-32">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="open">Open</SelectItem>
+                                <SelectItem value="in_progress">In Progress</SelectItem>
+                                <SelectItem value="completed">Completed</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={getPriorityColor(task.priority)}>
+                              {task.priority}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{format(new Date(task.deadline), "MMM dd, yyyy")}</TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingTask(task)
+                                  setIsCreateTaskOpen(true)
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => deleteTask(taskKey)}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        {isExpanded && (
+                          <TableRow>
+                            <TableCell colSpan={6} className="p-0">
+                              <div className="p-4 bg-gray-50 border-t">
+                                <div className="space-y-4">
+                                  {task.subtasks && task.subtasks.length > 0 && (
+                                    <div>
+                                      <h4 className="font-medium mb-2">Subtasks</h4>
+                                      <SubtaskRenderer
+                                        subtasks={task.subtasks}
+                                        parentTask={task}
+                                        taskId={taskKey}
+                                        userProfessions={userProfessions}
+                                        claimSubtask={claimSubtask}
+                                        updateResourceContribution={updateResourceContribution}
+                                        showOnlyAvailable={false}
+                                        completeSubtask={completeSubtask}
+                                      />
+                                    </div>
+                                  )}
+                                  {task.resources && task.resources.length > 0 && (
+                                    <div>
+                                      <h4 className="font-medium mb-2">Resources</h4>
+                                      <ResourceTracker
+                                        resources={task.resources}
+                                        taskId={taskKey}
+                                        subtaskId={null}
+                                        canEdit={true}
+                                        title=""
+                                        updateResourceContribution={updateResourceContribution}
+                                        onCompleteTask={(taskId) => updateTaskStatus(taskId.toString(), 'completed')}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </Fragment>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="templates">
+          <TemplateManagement refreshTemplates={refreshTasks} />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

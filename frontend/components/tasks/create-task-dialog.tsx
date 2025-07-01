@@ -10,12 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Slider } from "@/components/ui/slider"
-import { CalendarIcon, Plus, X, Package } from "lucide-react"
+import { CalendarIcon, Plus, X, Package, BookTemplate } from "lucide-react"
 import { format } from "date-fns"
 import { professionIcons } from "@/lib/constants"
 import { apiClient } from "@/lib/api-client"
 import { useToast } from "@/hooks/use-toast"
 import { useUser } from "@/contexts/UserContext"
+import { TemplateSelectorDialog } from "./template-selector-dialog"
 
 interface CreateTaskDialogProps {
   isOpen: boolean
@@ -118,221 +119,373 @@ const SubtaskForm: React.FC<SubtaskFormProps> = ({
   updateSubtaskResource,
   removeSubtaskResource,
   getAvailableSubtasks,
-}) => (
-  <div>
-    <div className="flex items-center justify-between mb-3">
-      <Label className="text-sm font-medium">Subtasks</Label>
-      <Button type="button" variant="outline" size="sm" onClick={addSubtask}>
-        <Plus className="h-3 w-3 mr-1" />
-        Add Subtask
-      </Button>
-    </div>
+}) => {
+  const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false)
+  const { toast } = useToast()
+  
+  // Обработчик для добавления подзадачи из шаблона
+  const handleSelectTemplate = (template: any) => {
+    // Закрываем диалог
+    setIsTemplateDialogOpen(false)
+    
+    if (!template) {
+      toast({
+        variant: "destructive",
+        title: "Invalid template",
+        description: "Selected template is invalid"
+      })
+      return
+    }
+    
+    // Создаем карту новых ID для всех подзадач
+    const idMap = new Map();
+    
+    // Найдем корневую подзадачу (которая не имеет родителя)
+    const rootSubtask = template.subtasks?.find((s: any) => !s.subtaskOf) || null;
+    
+    if (!rootSubtask && template.subtasks?.length > 0) {
+      toast({
+        variant: "destructive",
+        title: "Invalid template structure",
+        description: "Template doesn't have a root subtask"
+      });
+      return;
+    }
+    
+    // Если шаблон не содержит подзадач, создаем одну подзадачу из самого шаблона
+    if (!template.subtasks || template.subtasks.length === 0) {
+      // Генерируем новый ID для подзадачи
+      const newSubtaskId = `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      
+      const newSubtask = {
+        id: newSubtaskId,
+        name: template.name || "",
+        description: template.description || "",
+        professions: template.professions || [],
+        levels: template.levels || {},
+        dependencies: [],
+        subtaskOf: null,
+        resources: (template.resources || []).map((resource: any) => ({
+          id: `resource-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          name: resource.name || "",
+          needed: resource.needed || 1,
+          unit: resource.unit || "",
+          gathered: 0,
+          contributors: {}
+        })),
+        shipTo: template.shipTo || "",
+        takeFrom: template.takeFrom || "",
+        completed: false,
+        assignedTo: [],
+        subtasks: []
+      };
+      
+      // Добавляем подзадачу
+      addSubtask(newSubtask);
+      
+      toast({
+        title: "Subtask added",
+        description: "Subtask from template added successfully"
+      });
+      
+      return;
+    }
+    
+    // Для всех подзадач генерируем новые ID
+    template.subtasks.forEach((subtask: any) => {
+      const newId = `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      idMap.set(subtask.id, newId);
+    });
+    
+    // Создаем подзадачи с обновленными ID и ссылками
+    const processedSubtasks = template.subtasks.map((subtask: any) => {
+      const newId = idMap.get(subtask.id);
+      let newSubtaskOf = null;
+      
+      // Если это не корневая подзадача, обновляем ссылку на родителя
+      if (subtask.subtaskOf) {
+        newSubtaskOf = idMap.get(subtask.subtaskOf);
+      }
+      
+      // Обновляем зависимости, если они есть
+      const newDependencies = (subtask.dependencies || [])
+        .map((depId: string) => idMap.get(depId))
+        .filter(Boolean);
+      
+      return {
+        ...subtask,
+        id: newId,
+        subtaskOf: newSubtaskOf,
+        dependencies: newDependencies,
+        completed: false,
+        assignedTo: [],
+        resources: (subtask.resources || []).map((resource: any) => ({
+          id: `resource-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          name: resource.name || "",
+          needed: resource.needed || 1,
+          unit: resource.unit || "",
+          gathered: 0,
+          contributors: {}
+        }))
+      };
+    });
+    
+    // Добавляем все подзадачи
+    processedSubtasks.forEach(subtask => {
+      addSubtask(subtask);
+    });
+    
+    toast({
+      title: "Subtasks added",
+      description: `${processedSubtasks.length} subtasks from template added successfully`
+    });
+  }
+  
+  // Функция для добавления подзадачи с данными
+  const addSubtaskWithData = (subtaskData?: any) => {
+    if (subtaskData) {
+      addSubtask(subtaskData)
+    } else {
+      addSubtask()
+    }
+  }
+  
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <Label className="text-sm font-medium">Subtasks</Label>
+        <div className="flex gap-2">
+          <Button 
+            type="button" 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setIsTemplateDialogOpen(true)}
+            className="flex items-center gap-1"
+          >
+            <BookTemplate className="h-3 w-3" />
+            Add from Template
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => addSubtaskWithData()}>
+            <Plus className="h-3 w-3 mr-1" />
+            Add Subtask
+          </Button>
+        </div>
+      </div>
 
-    <div className="space-y-4">
-      {subtasks.map((subtask: any, index: number) => (
-        <div key={subtask.id} className="border rounded-lg p-4 bg-gray-50">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="font-medium text-sm">Subtask {index + 1}</h4>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => removeSubtask(index)}
-              className="h-7 px-2 text-red-600 hover:text-red-700"
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div>
-              <Label className="text-xs">Subtask Name</Label>
-              <Input
-                placeholder="Enter subtask name..."
-                value={subtask.name}
-                onChange={(e) => updateSubtask(index, "name", e.target.value)}
-                className="h-8 text-xs"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Description</Label>
-              <Input
-                placeholder="Brief description..."
-                value={subtask.description}
-                onChange={(e) => updateSubtask(index, "description", e.target.value)}
-                className="h-8 text-xs"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div>
-              <Label className="text-xs">Take From (Optional)</Label>
-              <Input
-                placeholder="Source location..."
-                value={subtask.takeFrom || ""}
-                onChange={(e) => updateSubtask(index, "takeFrom", e.target.value)}
-                className="h-8 text-xs"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Ship To (Optional)</Label>
-              <Input
-                placeholder="Destination location..."
-                value={subtask.shipTo || ""}
-                onChange={(e) => updateSubtask(index, "shipTo", e.target.value)}
-                className="h-8 text-xs"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div>
-              <Label className="text-xs">Depends On (Must be completed first)</Label>
-              <Select 
-                value={subtask.dependencies?.[0]?.toString() || ""} 
-                onValueChange={(value) => {
-                  if (value === "" || value === "none") {
-                    updateSubtask(index, "dependencies", [])
-                  } else {
-                    // Find the subtask by ID string and get its actual ID
-                    const selectedSubtask = getAvailableSubtasks(index).find(st => st.id === value)
-                    if (selectedSubtask) {
-                      updateSubtask(index, "dependencies", [selectedSubtask.id])
-                    }
-                  }
-                }}
+      <div className="space-y-4">
+        {subtasks.map((subtask: any, index: number) => (
+          <div key={subtask.id} className="border rounded-lg p-4 bg-gray-50">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-medium text-sm">Subtask {index + 1}</h4>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => removeSubtask(index)}
+                className="h-7 px-2 text-red-600 hover:text-red-700"
               >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Select dependency..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No dependency</SelectItem>
-                  {getAvailableSubtasks(index).map((st) => (
-                    <SelectItem key={st.id} value={st.id}>
-                      {st.name || `Subtask ${st.index + 1}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Subtask Of (Parent)</Label>
-              <Select 
-                value={subtask.subtaskOf?.toString() || "null"} 
-                onValueChange={(value) => {
-                  if (value === "null" || value === "") {
-                    updateSubtask(index, "subtaskOf", null)
-                  } else {
-                    // Find the selected parent subtask
-                    const selectedParent = getAvailableSubtasks(index).find(st => st.id === value)
-                    if (selectedParent) {
-                      updateSubtask(index, "subtaskOf", selectedParent.id)
-                    }
-                  }
-                }}
-              >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Main Task" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="null">Main Task</SelectItem>
-                  {getAvailableSubtasks(index).map((st) => (
-                    <SelectItem key={st.id} value={st.id}>
-                      {st.name || `Subtask ${st.index + 1}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="mb-3">
-            <Label className="text-xs">Required Professions</Label>
-            <div className="grid grid-cols-4 gap-2 mt-1">
-              {Object.entries(professionIcons).map(([profession, Icon]) => {
-                const IconComponent = Icon as React.ComponentType<{ className?: string }>
-                return (
-                <div key={`${subtask.id}-${profession}`} className="flex items-center gap-1">
-                  <input
-                    type="checkbox"
-                    id={`subtask-${subtask.id}-prof-${profession}`}
-                    checked={subtask.professions?.includes(profession) || false}
-                    onChange={(e) => {
-                      const currentProfs = subtask.professions || []
-                      const newProfs = e.target.checked
-                        ? [...currentProfs, profession]
-                        : currentProfs.filter((p: string) => p !== profession)
-                      updateSubtask(index, "professions", newProfs)
-                      
-                      // Handle levels
-                      if (e.target.checked) {
-                        const currentLevels = subtask.levels || {}
-                        updateSubtask(index, "levels", { ...currentLevels, [profession]: 50 })
-                      } else {
-                        const currentLevels = { ...(subtask.levels || {}) }
-                        delete currentLevels[profession]
-                        updateSubtask(index, "levels", currentLevels)
-                      }
-                    }}
-                    className="rounded"
-                  />
-                  <IconComponent className="h-3 w-3" />
-                  <span className="text-xs capitalize">{profession}</span>
-                </div>
-                )
-              })}
+                <X className="h-3 w-3" />
+              </Button>
             </div>
             
-            {/* Level sliders for selected professions */}
-            {subtask.professions?.length > 0 && (
-              <div className="mt-2 space-y-2">
-                {subtask.professions.map((profession: string) => {
-                  const Icon = professionIcons[profession as keyof typeof professionIcons]
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <Label className="text-xs">Subtask Name</Label>
+                <Input
+                  placeholder="Enter subtask name..."
+                  value={subtask.name}
+                  onChange={(e) => updateSubtask(index, "name", e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Description</Label>
+                <Input
+                  placeholder="Brief description..."
+                  value={subtask.description}
+                  onChange={(e) => updateSubtask(index, "description", e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <Label className="text-xs">Take From (Optional)</Label>
+                <Input
+                  placeholder="Source location..."
+                  value={subtask.takeFrom || ""}
+                  onChange={(e) => updateSubtask(index, "takeFrom", e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Ship To (Optional)</Label>
+                <Input
+                  placeholder="Destination location..."
+                  value={subtask.shipTo || ""}
+                  onChange={(e) => updateSubtask(index, "shipTo", e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <Label className="text-xs">Depends On (Must be completed first)</Label>
+                <Select 
+                  value={subtask.dependencies?.[0]?.toString() || ""} 
+                  onValueChange={(value) => {
+                    if (value === "" || value === "none") {
+                      updateSubtask(index, "dependencies", [])
+                    } else {
+                      // Find the subtask by ID string and get its actual ID
+                      const selectedSubtask = getAvailableSubtasks(index).find(st => st.id === value)
+                      if (selectedSubtask) {
+                        updateSubtask(index, "dependencies", [selectedSubtask.id])
+                      }
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Select dependency..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No dependency</SelectItem>
+                    {getAvailableSubtasks(index).map((st) => (
+                      <SelectItem key={st.id} value={st.id}>
+                        {st.name || `Subtask ${st.index + 1}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Subtask Of (Parent)</Label>
+                <Select 
+                  value={subtask.subtaskOf?.toString() || "null"} 
+                  onValueChange={(value) => {
+                    if (value === "null" || value === "") {
+                      updateSubtask(index, "subtaskOf", null)
+                    } else {
+                      // Find the selected parent subtask
+                      const selectedParent = getAvailableSubtasks(index).find(st => st.id === value)
+                      if (selectedParent) {
+                        updateSubtask(index, "subtaskOf", selectedParent.id)
+                      }
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Main Task" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="null">Main Task</SelectItem>
+                    {getAvailableSubtasks(index).map((st) => (
+                      <SelectItem key={st.id} value={st.id}>
+                        {st.name || `Subtask ${st.index + 1}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="mb-3">
+              <Label className="text-xs">Required Professions</Label>
+              <div className="grid grid-cols-4 gap-2 mt-1">
+                {Object.entries(professionIcons).map(([profession, Icon]) => {
                   const IconComponent = Icon as React.ComponentType<{ className?: string }>
                   return (
-                    <div key={`${subtask.id}-level-${profession}`} className="flex items-center gap-2">
-                      <IconComponent className="h-3 w-3" />
-                      <span className="text-xs capitalize w-20">{profession}</span>
-                      <div className="flex-1">
-                        <Slider
-                          value={[subtask.levels?.[profession] || 50]}
-                          onValueChange={(value) => {
-                            const currentLevels = subtask.levels || {}
-                            updateSubtask(index, "levels", { ...currentLevels, [profession]: value[0] })
-                          }}
-                          max={100}
-                          step={1}
-                          className="w-full"
-                        />
-                      </div>
-                      <span className="text-xs w-8">{subtask.levels?.[profession] || 50}</span>
-                    </div>
+                  <div key={`${subtask.id}-${profession}`} className="flex items-center gap-1">
+                    <input
+                      type="checkbox"
+                      id={`subtask-${subtask.id}-prof-${profession}`}
+                      checked={subtask.professions?.includes(profession) || false}
+                      onChange={(e) => {
+                        const currentProfs = subtask.professions || []
+                        const newProfs = e.target.checked
+                          ? [...currentProfs, profession]
+                          : currentProfs.filter((p: string) => p !== profession)
+                        updateSubtask(index, "professions", newProfs)
+                        
+                        // Handle levels
+                        if (e.target.checked) {
+                          const currentLevels = subtask.levels || {}
+                          updateSubtask(index, "levels", { ...currentLevels, [profession]: 50 })
+                        } else {
+                          const currentLevels = { ...(subtask.levels || {}) }
+                          delete currentLevels[profession]
+                          updateSubtask(index, "levels", currentLevels)
+                        }
+                      }}
+                      className="rounded"
+                    />
+                    <IconComponent className="h-3 w-3" />
+                    <span className="text-xs capitalize">{profession}</span>
+                  </div>
                   )
                 })}
               </div>
-            )}
-          </div>
+              
+              {/* Level sliders for selected professions */}
+              {subtask.professions?.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  {subtask.professions.map((profession: string) => {
+                    const Icon = professionIcons[profession as keyof typeof professionIcons]
+                    const IconComponent = Icon as React.ComponentType<{ className?: string }>
+                    return (
+                      <div key={`${subtask.id}-level-${profession}`} className="flex items-center gap-2">
+                        <IconComponent className="h-3 w-3" />
+                        <span className="text-xs capitalize w-20">{profession}</span>
+                        <div className="flex-1">
+                          <Slider
+                            value={[subtask.levels?.[profession] || 50]}
+                            onValueChange={(value) => {
+                              const currentLevels = subtask.levels || {}
+                              updateSubtask(index, "levels", { ...currentLevels, [profession]: value[0] })
+                            }}
+                            max={100}
+                            step={1}
+                            className="w-full"
+                          />
+                        </div>
+                        <span className="text-xs w-8">{subtask.levels?.[profession] || 50}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
 
-          {/* Subtask Resources */}
-          <div className="mt-3">
-            <ResourceForm
-              resources={subtask.resources || []}
-              onAdd={() => addSubtaskResource(index)}
-              onUpdate={(resourceIndex: number, field: string, value: any) => 
-                updateSubtaskResource(index, resourceIndex, field, value)
-              }
-              onRemove={(resourceIndex: number) => 
-                removeSubtaskResource(index, resourceIndex)
-              }
-              title="Subtask Resources"
-            />
+            {/* Subtask Resources */}
+            <div className="mt-3">
+              <ResourceForm
+                resources={subtask.resources || []}
+                onAdd={() => addSubtaskResource(index)}
+                onUpdate={(resourceIndex: number, field: string, value: any) => 
+                  updateSubtaskResource(index, resourceIndex, field, value)
+                }
+                onRemove={(resourceIndex: number) => 
+                  removeSubtaskResource(index, resourceIndex)
+                }
+                title="Subtask Resources"
+              />
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
+      
+      {/* Диалог выбора шаблона */}
+      <TemplateSelectorDialog
+        isOpen={isTemplateDialogOpen}
+        onClose={() => setIsTemplateDialogOpen(false)}
+        onSelectTemplate={handleSelectTemplate}
+        onCreateNew={() => setIsTemplateDialogOpen(false)}
+      />
     </div>
-  </div>
-)
+  )
+}
 
 export function CreateTaskDialog({
   isOpen,
@@ -351,6 +504,9 @@ export function CreateTaskDialog({
   const [professionLevels, setProfessionLevels] = useState(editingTask?.levels || {})
   const [taskPriority, setTaskPriority] = useState(editingTask?.priority || "medium")
   const [newTaskDate, setNewTaskDate] = useState(new Date())
+  
+  // Состояние для работы с шаблонами
+  const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false)
   
   // Функция для генерации уникальных ID
   const generateId = useCallback(() => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, [])
@@ -378,6 +534,70 @@ export function CreateTaskDialog({
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
   const { currentUser } = useUser()
+
+  // Обработчик для открытия диалога выбора шаблона
+  const handleDialogOpen = () => {
+    if (editingTask) {
+      // Если редактируем задачу, просто открываем диалог
+      return
+    }
+    
+    // Если создаем новую задачу, показываем диалог выбора шаблона
+    setIsTemplateDialogOpen(true)
+  }
+
+  useEffect(() => {
+    // Открываем диалог выбора шаблона при первом открытии
+    if (isOpen && !editingTask) {
+      handleDialogOpen()
+    }
+  }, [isOpen, editingTask])
+
+  // Обработчик для выбора шаблона
+  const handleSelectTemplate = (template: any) => {
+    setTaskName(template.name || "")
+    setTaskDescription(template.description || "")
+    setTaskTakeFrom(template.takeFrom || "")
+    setTaskShipTo(template.shipTo || "")
+    setSelectedProfessions(template.professions || [])
+    setProfessionLevels(template.levels || {})
+    setTaskPriority(template.priority || "medium")
+    
+    // Обработка ресурсов из шаблона
+    const templateResources = template.resources?.map((resource: any) => ({
+      ...resource,
+      id: generateId(),
+      gathered: 0,
+      contributors: {}
+    })) || []
+    setTaskResources(templateResources)
+    
+    // Обработка подзадач из шаблона
+    const templateSubtasks = template.subtasks?.map((subtask: any) => {
+      // Рекурсивная функция для обработки вложенных подзадач
+      const processSubtask = (st: any): any => {
+        return {
+          ...st,
+          id: st.id || generateId(),
+          completed: false,
+          assignedTo: [],
+          resources: (st.resources || []).map((res: any) => ({
+            ...res,
+            id: generateId(),
+            gathered: 0,
+            contributors: {}
+          })),
+          subtasks: (st.subtasks || []).map(processSubtask)
+        }
+      }
+      
+      return processSubtask(subtask)
+    }) || []
+    setSubtasks(templateSubtasks)
+    
+    // Закрываем диалог выбора шаблона
+    setIsTemplateDialogOpen(false)
+  }
 
   // Get available subtasks for dependency and parent selection
   const getAvailableSubtasks = useCallback((currentIndex: number) => {
@@ -473,8 +693,8 @@ export function CreateTaskDialog({
     setTaskResources((prevResources: any[]) => prevResources.filter((_: any, i: number) => i !== index))
   }, [])
 
-  const addSubtask = useCallback(() => {
-    const newSubtask = {
+  const addSubtask = useCallback((customSubtask?: any) => {
+    const newSubtask = customSubtask || {
       id: `subtask-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // Стабильный уникальный ID
       name: "",
       description: "",
@@ -641,196 +861,219 @@ export function CreateTaskDialog({
     }
   }
 
-
-
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-xl">
-            {editingTask ? "Edit Task" : `Create New ${taskType === 'guild' ? 'Guild' : 'Member'} Task`}
-          </DialogTitle>
-          <DialogDescription>
-            {editingTask
-              ? "Modify the existing task and its requirements"
-              : `Create a new ${taskType === 'guild' ? 'guild' : 'member'} task with requirements and resources`}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-4">
-            <div>
-              <Label htmlFor="task-name" className="text-sm font-medium">
-                Task Name
-              </Label>
-              <Input
-                id="task-name"
-                placeholder="Enter a descriptive task name..."
-                value={taskName}
-                onChange={(e) => setTaskName(e.target.value)}
-                className="mt-1"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="task-description" className="text-sm font-medium">
-                Description
-              </Label>
-              <Textarea
-                id="task-description"
-                placeholder="Provide a detailed description of the task..."
-                value={taskDescription}
-                onChange={(e) => setTaskDescription(e.target.value)}
-                className="mt-1 h-20"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="take-from" className="text-sm font-medium">
-                Take From (Optional)
-              </Label>
-              <Input
-                id="take-from"
-                placeholder="Source location..."
-                value={taskTakeFrom}
-                onChange={(e) => setTaskTakeFrom(e.target.value)}
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="ship-to" className="text-sm font-medium">
-                Ship To (Optional)
-              </Label>
-              <Input
-                id="ship-to"
-                placeholder="Destination location..."
-                value={taskShipTo}
-                onChange={(e) => setTaskShipTo(e.target.value)}
-                className="mt-1"
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label className="text-sm font-medium mb-3 block">Required Professions</Label>
-            <div className="grid grid-cols-3 gap-3 p-4 border rounded-lg bg-gray-50">
-              {Object.entries(professionIcons).map(([profession, Icon]) => (
-                <div key={profession} className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id={`prof-${profession}`}
-                      checked={selectedProfessions.includes(profession)}
-                      onChange={() => handleProfessionToggle(profession)}
-                      className="rounded"
-                    />
-                    <Icon className="h-4 w-4" />
-                    <span className="capitalize text-sm">{profession}</span>
-                  </div>
-                  {selectedProfessions.includes(profession) && (
-                    <div className="space-y-1 ml-6">
-                      <Label className="text-xs">Level: {professionLevels[profession] || 50}</Label>
-                      <Slider
-                        value={[professionLevels[profession] || 50]}
-                        onValueChange={(value) => handleProfessionLevelChange(profession, value[0])}
-                        max={100}
-                        step={1}
-                        className="w-full"
-                      />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-            {selectedProfessions.length > 0 && (
-              <div className="mt-2 p-2 bg-blue-50 rounded text-sm">
-                <strong>Selected:</strong>{" "}
-                {selectedProfessions.map((prof: string) => `${prof} (${professionLevels[prof]})`).join(", ")}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <Label className="text-sm font-medium mb-3 block">Task Resources</Label>
-            <div className="border rounded-lg p-4 bg-gray-50">
-              <ResourceForm
-                resources={taskResources}
-                onAdd={addTaskResource}
-                onUpdate={updateTaskResource}
-                onRemove={removeTaskResource}
-                title="Main Task Resources"
-              />
-            </div>
-          </div>
-
-          <div className="border rounded-lg p-4 bg-gray-50">
-            <SubtaskForm
-              subtasks={subtasks}
-              professionIcons={professionIcons}
-              addSubtask={addSubtask}
-              updateSubtask={updateSubtask}
-              removeSubtask={removeSubtask}
-              addSubtaskResource={addSubtaskResource}
-              updateSubtaskResource={updateSubtaskResource}
-              removeSubtaskResource={removeSubtaskResource}
-              getAvailableSubtasks={getAvailableSubtasks}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-sm font-medium">Deadline</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal mt-1 bg-transparent">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(newTaskDate, "PPP")}
+    <>
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl flex items-center gap-2">
+              {editingTask ? (
+                "Edit Task" 
+              ) : (
+                <>
+                  <span>Create New {taskType === 'guild' ? 'Guild' : 'Member'} Task</span>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="ml-2 flex items-center gap-1"
+                    onClick={() => setIsTemplateDialogOpen(true)}
+                  >
+                    <BookTemplate className="h-4 w-4" />
+                    <span>Use Template</span>
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar mode="single" selected={newTaskDate} onSelect={setNewTaskDate} initialFocus />
-                </PopoverContent>
-              </Popover>
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {editingTask
+                ? "Modify the existing task and its requirements"
+                : `Create a new ${taskType === 'guild' ? 'guild' : 'member'} task with requirements and resources`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <Label htmlFor="task-name" className="text-sm font-medium">
+                  Task Name
+                </Label>
+                <Input
+                  id="task-name"
+                  placeholder="Enter a descriptive task name..."
+                  value={taskName}
+                  onChange={(e) => setTaskName(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="task-description" className="text-sm font-medium">
+                  Description
+                </Label>
+                <Textarea
+                  id="task-description"
+                  placeholder="Provide a detailed description of the task..."
+                  value={taskDescription}
+                  onChange={(e) => setTaskDescription(e.target.value)}
+                  className="mt-1 h-20"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="take-from" className="text-sm font-medium">
+                  Take From (Optional)
+                </Label>
+                <Input
+                  id="take-from"
+                  placeholder="Source location..."
+                  value={taskTakeFrom}
+                  onChange={(e) => setTaskTakeFrom(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="ship-to" className="text-sm font-medium">
+                  Ship To (Optional)
+                </Label>
+                <Input
+                  id="ship-to"
+                  placeholder="Destination location..."
+                  value={taskShipTo}
+                  onChange={(e) => setTaskShipTo(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
             </div>
 
             <div>
-              <Label className="text-sm font-medium">Priority</Label>
-              <Select value={taskPriority} onValueChange={setTaskPriority}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Select priority" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Low Priority</SelectItem>
-                  <SelectItem value="medium">Medium Priority</SelectItem>
-                  <SelectItem value="high">High Priority</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label className="text-sm font-medium mb-3 block">Required Professions</Label>
+              <div className="grid grid-cols-3 gap-3 p-4 border rounded-lg bg-gray-50">
+                {Object.entries(professionIcons).map(([profession, Icon]) => (
+                  <div key={profession} className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id={`prof-${profession}`}
+                        checked={selectedProfessions.includes(profession)}
+                        onChange={() => handleProfessionToggle(profession)}
+                        className="rounded"
+                      />
+                      <Icon className="h-4 w-4" />
+                      <span className="capitalize text-sm">{profession}</span>
+                    </div>
+                    {selectedProfessions.includes(profession) && (
+                      <div className="space-y-1 ml-6">
+                        <Label className="text-xs">Level: {professionLevels[profession] || 50}</Label>
+                        <Slider
+                          value={[professionLevels[profession] || 50]}
+                          onValueChange={(value) => handleProfessionLevelChange(profession, value[0])}
+                          max={100}
+                          step={1}
+                          className="w-full"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {selectedProfessions.length > 0 && (
+                <div className="mt-2 p-2 bg-blue-50 rounded text-sm">
+                  <strong>Selected:</strong>{" "}
+                  {selectedProfessions.map((prof: string) => `${prof} (${professionLevels[prof]})`).join(", ")}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <Label className="text-sm font-medium mb-3 block">Task Resources</Label>
+              <div className="border rounded-lg p-4 bg-gray-50">
+                <ResourceForm
+                  resources={taskResources}
+                  onAdd={addTaskResource}
+                  onUpdate={updateTaskResource}
+                  onRemove={removeTaskResource}
+                  title="Main Task Resources"
+                />
+              </div>
+            </div>
+
+            <div className="border rounded-lg p-4 bg-gray-50">
+              <SubtaskForm
+                subtasks={subtasks}
+                professionIcons={professionIcons}
+                addSubtask={addSubtask}
+                updateSubtask={updateSubtask}
+                removeSubtask={removeSubtask}
+                addSubtaskResource={addSubtaskResource}
+                updateSubtaskResource={updateSubtaskResource}
+                removeSubtaskResource={removeSubtaskResource}
+                getAvailableSubtasks={getAvailableSubtasks}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium">Deadline</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal mt-1 bg-transparent">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {format(newTaskDate, "PPP")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar mode="single" selected={newTaskDate} onSelect={setNewTaskDate} initialFocus />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div>
+                <Label className="text-sm font-medium">Priority</Label>
+                <Select value={taskPriority} onValueChange={setTaskPriority}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low Priority</SelectItem>
+                    <SelectItem value="medium">Medium Priority</SelectItem>
+                    <SelectItem value="high">High Priority</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-4 border-t">
+              <Button 
+                className="flex-1" 
+                onClick={handleSave} 
+                disabled={!taskName.trim() || isLoading}
+              >
+                {isLoading ? 'Saving...' : (editingTask ? "Update Task" : "Create Task")}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsOpen(false)
+                  setEditingTask(null)
+                }}
+                disabled={isLoading}
+              >
+                Cancel
+              </Button>
             </div>
           </div>
-
-          <div className="flex gap-3 pt-4 border-t">
-            <Button 
-              className="flex-1" 
-              onClick={handleSave} 
-              disabled={!taskName.trim() || isLoading}
-            >
-              {isLoading ? 'Saving...' : (editingTask ? "Update Task" : "Create Task")}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsOpen(false)
-                setEditingTask(null)
-              }}
-              disabled={isLoading}
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Диалог выбора шаблона */}
+      <TemplateSelectorDialog
+        isOpen={isTemplateDialogOpen}
+        onClose={() => setIsTemplateDialogOpen(false)}
+        onSelectTemplate={handleSelectTemplate}
+        onCreateNew={() => setIsTemplateDialogOpen(false)}
+      />
+    </>
   )
 }

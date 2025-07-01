@@ -23,6 +23,29 @@ interface Task {
   taskType?: 'guild' | 'member';
 }
 
+interface Template {
+  _id: string; // MongoDB ObjectId
+  id: string; // String ID for template
+  name: string;
+  originalTaskId?: number;
+  professions: string[];
+  levels: Record<string, number>;
+  priority: string;
+  description: string;
+  resources: Array<{
+    name: string;
+    needed: number;
+    unit: string;
+  }>;
+  createdBy: string;
+  shipTo: string;
+  takeFrom: string;
+  taskType?: 'guild' | 'member';
+  subtasks?: any[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 interface User {
   _id: string; // MongoDB ObjectId
   id?: string; // Опциональный string ID для совместимости
@@ -299,6 +322,59 @@ class ApiClient {
         'Authorization': `Bearer ${token}`,
       },
     });
+  }
+
+  // Templates API methods
+  async getAllTemplates(search?: string): Promise<ApiResponse<Template[]>> {
+    const queryParams = search ? `?search=${encodeURIComponent(search)}` : '';
+    const response = await this.request<{templates: Template[], pagination: any}>(`/templates${queryParams}`);
+    
+    if (response.success && response.data) {
+      return {
+        success: true,
+        data: response.data.templates
+      };
+    }
+    return { success: false, data: [], message: response.message };
+  }
+
+  async getTemplateById(templateId: string): Promise<ApiResponse<Template>> {
+    return this.request<Template>(`/templates/${templateId}`);
+  }
+
+  async createTemplate(templateData: {name: string, taskId?: number, subtaskId?: string, userName: string}): Promise<ApiResponse<Template>> {
+    return this.request<Template>('/templates', {
+      method: 'POST',
+      body: JSON.stringify(templateData),
+    });
+  }
+
+  async deleteTemplate(templateId: string): Promise<ApiResponse<void>> {
+    return this.request<void>(`/templates/${templateId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async updateTemplate(templateId: string, templateData: Partial<Template>): Promise<ApiResponse<Template>> {
+    return this.request<Template>(`/templates/${templateId}`, {
+      method: 'PUT',
+      body: JSON.stringify(templateData),
+    });
+  }
+  
+  async getTemplatesByType(type: 'guild' | 'member'): Promise<ApiResponse<Template[]>> {
+    const response = await this.request<{templates: Template[], pagination: any}>(`/templates?taskType=${type}`);
+    
+    if (response.success && response.data) {
+      const templates = response.data.templates || response.data;
+      if (Array.isArray(templates)) {
+        return {
+          success: true,
+          data: templates
+        };
+      }
+    }
+    return { success: false, data: [], message: response.message };
   }
 }
 
