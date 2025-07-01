@@ -50,6 +50,7 @@ export function SubtaskRenderer({
   completeSubtask,
 }: SubtaskRendererProps) {
   const [expandedSubtasks, setExpandedSubtasks] = useState<Set<string>>(new Set())
+  const [visibleResourceBlocks, setVisibleResourceBlocks] = useState<Set<string>>(new Set())
   const { currentUser } = useUser()
   const { toast } = useToast()
   const currentUserName = currentUser?.name || ""
@@ -75,6 +76,19 @@ export function SubtaskRenderer({
     setCurrentTemplateName(name || "")
     setSaveTemplateDialogOpen(true)
   }
+
+  // Функция для переключения видимости блока с ресурсами
+  const toggleResourceBlock = useCallback((subtaskId: string) => {
+    setVisibleResourceBlocks((prevVisible: Set<string>) => {
+      const newVisible = new Set(prevVisible)
+      if (newVisible.has(subtaskId)) {
+        newVisible.delete(subtaskId)
+      } else {
+        newVisible.add(subtaskId)
+      }
+      return newVisible
+    })
+  }, [])
 
   if (!subtasks) return null
 
@@ -257,6 +271,9 @@ export function SubtaskRenderer({
 
     const hasUnmetDependencies = dependencyInfo.some((dep: any) => !dep.completed)
     const resourceProgress = calculateResourceProgress(subtask.resources)
+
+    const resourceBlockKey = `resource-${subtask.id}`
+    const isResourceBlockVisible = visibleResourceBlocks.has(resourceBlockKey)
 
     // При фильтрации showOnlyAvailable мы уже отфильтровали недоступные подзадачи
     // А в обычном режиме используем стандартную логику
@@ -481,6 +498,51 @@ export function SubtaskRenderer({
           </div>
         </div>
 
+        {/* При включенном фильтре showOnlyAvailable показываем ресурсы прямо в карточке подзадачи */}
+        {showOnlyAvailable && subtask.resources && subtask.resources.length > 0 && (
+          <div className="mt-2">
+            {/* Кнопка для разворачивания/сворачивания блока с ресурсами */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => toggleResourceBlock(resourceBlockKey)}
+              className="w-full flex items-center justify-between py-2 px-3 text-sm text-gray-700 hover:bg-gray-50 rounded-lg border border-gray-100"
+            >
+              <div className="flex items-center gap-2">
+                <Package className="h-3 w-3 text-blue-500" />
+                <span>Resources ({resourceProgress}% complete)</span>
+              </div>
+              {isResourceBlockVisible ? (
+                <ChevronDown className="h-3 w-3" />
+              ) : (
+                <ChevronRight className="h-3 w-3" />
+              )}
+            </Button>
+            
+            {/* Содержимое блока с ресурсами */}
+            {isResourceBlockVisible && (
+              <div className="p-3 bg-white rounded-b-lg border border-t-0 border-gray-100">
+                <div className="flex justify-end mb-2">
+                  {userAssigned && (
+                    <Badge variant="outline" className="text-blue-600 bg-blue-50 text-xs">
+                      You can contribute
+                    </Badge>
+                  )}
+                </div>
+                <ResourceTracker
+                  resources={subtask.resources}
+                  taskId={taskId}
+                  subtaskId={subtask.id}
+                  canEdit={userAssigned}
+                  title=""
+                  updateResourceContribution={updateResourceContribution}
+                  onCompleteSubtask={completeSubtask}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
         {/* При включенном фильтре не отображаем раскрываемые блоки */}
         {!showOnlyAvailable && isExpanded && (
           <div style={{ paddingLeft: `${(depth + 1) * 24}px` }} className="space-y-3 p-4 bg-white rounded-lg border border-gray-100 ml-9">
@@ -593,6 +655,15 @@ export function SubtaskRenderer({
               </div>
             )}
 
+            {hasChildren && (
+              <div className="space-y-2 border-l-2 border-gray-200 pl-4">
+                <h6 className="text-xs font-medium text-gray-600 mb-2">Nested Subtasks</h6>
+                <div className="space-y-1">
+                  {subtask.children.map((child: any) => renderSubtask(child, depth + 1))}
+                </div>
+              </div>
+            )}
+            
             {subtask.resources && subtask.resources.length > 0 && (
               <div>
                 <h6 className="text-xs font-medium text-gray-700 mb-2">Resources ({resourceProgress}% complete)</h6>
@@ -605,16 +676,6 @@ export function SubtaskRenderer({
                   updateResourceContribution={updateResourceContribution}
                   onCompleteSubtask={completeSubtask}
                 />
-              </div>
-            )}
-
-            {/* Show nested subtasks only when expanded and not in showOnlyAvailable mode */}
-            {hasChildren && (
-              <div className="space-y-2 border-l-2 border-gray-200 pl-4">
-                <h6 className="text-xs font-medium text-gray-600 mb-2">Nested Subtasks</h6>
-                <div className="space-y-1">
-                  {subtask.children.map((child: any) => renderSubtask(child, depth + 1))}
-                </div>
               </div>
             )}
           </div>
