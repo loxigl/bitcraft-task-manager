@@ -16,7 +16,7 @@ const subtaskSchema = new Schema({
   name: { type: String, required: true },
   professions: [{
     type: String,
-    enum: Object.values(['carpentry', 'farming', 'fishing', 'foraging', 'forestry', 'hunting', 'leatherworking', 'masonry', 'mining', 'scholar', 'smithing', 'tailoring']),
+    enum: ['carpentry', 'farming', 'fishing', 'foraging', 'forestry', 'hunting', 'leatherworking', 'masonry', 'mining', 'scholar', 'smithing', 'tailoring'],
     required: true
   }],
   levels: {
@@ -42,7 +42,7 @@ const templateSchema = new Schema<TemplateDocument>({
   originalTaskId: { type: Number, required: false },
   professions: [{
     type: String,
-    enum: Object.values(['carpentry', 'farming', 'fishing', 'foraging', 'forestry', 'hunting', 'leatherworking', 'masonry', 'mining', 'scholar', 'smithing', 'tailoring']),
+    enum: ['carpentry', 'farming', 'fishing', 'foraging', 'forestry', 'hunting', 'leatherworking', 'masonry', 'mining', 'scholar', 'smithing', 'tailoring'],
     required: true
   }],
   levels: {
@@ -52,7 +52,7 @@ const templateSchema = new Schema<TemplateDocument>({
   },
   priority: {
     type: String,
-    enum: Object.values(['low', 'medium', 'high', 'critical']),
+    enum: ['low', 'medium', 'high', 'critical'],
     required: true
   },
   description: { type: String, required: false },
@@ -62,7 +62,7 @@ const templateSchema = new Schema<TemplateDocument>({
   takeFrom: { type: String, required: false },
   taskType: {
     type: String,
-    enum: Object.values(['guild', 'member']),
+    enum: ['guild', 'member'],
     default: 'member'
   },
   subtasks: [subtaskSchema]

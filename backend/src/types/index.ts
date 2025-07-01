@@ -94,7 +94,7 @@ export interface Task {
 export interface Template {
   id: string;
   name: string;
-  originalTaskId?: number;
+  originalTaskId?: number | null;
   professions: ProfessionType[];
   levels: Map<ProfessionType, number>;
   priority: Priority;

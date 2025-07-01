@@ -120,7 +120,7 @@ export function ResourceTracker({
                     }}
                     className="h-6 px-2 text-xs"
                   >
-                    Update
+                    Add
                   </Button>
                 )}
               </div>
