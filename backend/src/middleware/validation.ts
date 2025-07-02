@@ -114,8 +114,8 @@ export const validateUpdateResource = [
     .withMessage('Resource name is required'),
   
   body('quantity')
-    .isInt({ min: 0 })
-    .withMessage('Quantity must be a non-negative number'),
+    .isInt()
+    .withMessage('Quantity must be a number'),
   
   handleValidationErrors
 ];

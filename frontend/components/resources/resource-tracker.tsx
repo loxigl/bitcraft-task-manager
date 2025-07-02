@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress"
 import { calculateResourceProgress } from "@/lib/utils/task-utils"
 import { useUser } from "@/contexts/UserContext"
 import { cn } from "@/lib/utils"
+import { Plus, Minus, Edit } from "lucide-react"
 
 interface ResourceTrackerProps {
   resources: any[]
@@ -32,14 +33,22 @@ export function ResourceTracker({
 }: ResourceTrackerProps) {
   const [editingResource, setEditingResource] = useState<string | null>(null)
   const [newQuantity, setNewQuantity] = useState(0)
+  const [inputValue, setInputValue] = useState("")
   const { currentUser } = useUser()
 
-  const handleUpdateResource = (resourceName: string) => {
-    if (newQuantity >= 0) {
-      updateResourceContribution(taskId, subtaskId, resourceName, newQuantity)
-      setEditingResource(null)
-      setNewQuantity(0)
-    }
+  const handleUpdateResource = (resourceName: string, quantity: number) => {
+    updateResourceContribution(taskId, subtaskId, resourceName, quantity)
+    setEditingResource(null)
+    setNewQuantity(0)
+    setInputValue("")
+  }
+
+  const handleQuickAdd = (resourceName: string, amount: number) => {
+    updateResourceContribution(taskId, subtaskId, resourceName, amount)
+  }
+
+  const handleQuickRemove = (resourceName: string, amount: number) => {
+    updateResourceContribution(taskId, subtaskId, resourceName, -amount)
   }
 
   if (!resources || resources.length === 0) return null
@@ -111,17 +120,71 @@ export function ResourceTracker({
                   )}
                 </div>
                 {canEdit && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setEditingResource(resource.name)
-                      setNewQuantity(userContribution)
-                    }}
-                    className="h-6 px-2 text-xs"
-                  >
-                    Add
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    {/* Кнопки убавления ресурсов */}
+                    {userContribution > 0 && (
+                      <div className="flex items-center border rounded-md mr-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleQuickRemove(resource.name, Math.min(5, userContribution))}
+                          disabled={userContribution < 5}
+                          className="h-6 w-8 p-0 text-xs rounded-r-none border-r hover:bg-red-50 disabled:opacity-50"
+                          title="Remove 5"
+                        >
+                          -5
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleQuickRemove(resource.name, 1)}
+                          className="h-6 w-6 p-0 rounded-l-none hover:bg-red-50"
+                          title="Remove 1"
+                        >
+                          <Minus className="h-3 w-3 text-red-600" />
+                        </Button>
+                      </div>
+                    )}
+                    
+                    {/* Кнопки добавления ресурсов */}
+                    <div className="flex items-center border rounded-md">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleQuickAdd(resource.name, 1)}
+                        disabled={resource.gathered >= resource.needed}
+                        className="h-6 w-6 p-0 rounded-r-none border-r hover:bg-green-50 disabled:opacity-50"
+                        title="Add 1"
+                      >
+                        <Plus className="h-3 w-3 text-green-600" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleQuickAdd(resource.name, 5)}
+                        disabled={resource.gathered + 5 > resource.needed}
+                        className="h-6 w-8 p-0 text-xs rounded-l-none hover:bg-green-50 disabled:opacity-50"
+                        title="Add 5"
+                      >
+                        +5
+                      </Button>
+                    </div>
+                    
+                    {/* Кнопка точного ввода (старый функционал) */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setEditingResource(resource.name)
+                        setNewQuantity(0)
+                        setInputValue("")
+                      }}
+                      className="h-6 px-2 text-xs ml-1"
+                      title="Add/remove custom amount (use negative numbers to remove)"
+                    >
+                      <Edit className="h-3 w-3" />
+                    </Button>
+                  </div>
                 )}
               </div>
 
@@ -144,29 +207,49 @@ export function ResourceTracker({
               {isEditing && (
                 <div className="mt-2 p-2 border rounded bg-white">
                   <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500 min-w-fit">Add:</span>
                     <Input
                       type="number"
-                      min="0"
-                      max={resource.needed}
-                      value={newQuantity}
-                      onChange={(e) => setNewQuantity(Number.parseInt(e.target.value) || 0)}
+                      value={inputValue}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        setInputValue(value)
+                        // Обновляем newQuantity только если введено валидное число
+                        const numValue = value === "" || value === "-" ? 0 : Number.parseInt(value)
+                        setNewQuantity(isNaN(numValue) ? 0 : numValue)
+                      }}
                       className="w-20 h-6 text-xs"
                       placeholder="0"
                     />
                     <span className="text-xs text-gray-500">
-                      / {resource.needed} {resource.unit}
+                      {resource.unit}
                     </span>
-                    <Button size="sm" onClick={() => handleUpdateResource(resource.name)} className="h-6 px-2 text-xs">
-                      Save
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleUpdateResource(resource.name, newQuantity)} 
+                      className="h-6 px-2 text-xs"
+                      disabled={newQuantity === 0 || inputValue === "" || inputValue === "-"}
+                    >
+                      {newQuantity >= 0 ? 'Add' : 'Remove'}
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => setEditingResource(null)}
+                      onClick={() => {
+                        setEditingResource(null)
+                        setInputValue("")
+                        setNewQuantity(0)
+                      }}
                       className="h-6 px-2 text-xs"
                     >
                       Cancel
                     </Button>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Current: {userContribution}, Will become: {Math.max(0, userContribution + newQuantity)}
+                  </div>
+                  <div className="text-xs text-blue-600 mt-1">
+                    💡 Tip: Use negative numbers to remove resources (e.g., -3 to remove 3 {resource.unit})
                   </div>
                 </div>
               )}

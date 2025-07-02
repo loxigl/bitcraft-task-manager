@@ -156,19 +156,19 @@ export function TaskDashboard({
     tasks.forEach(task => {
       const taskMatchesSearch = matchesSearchCriteria(task, searchTerm)
       const taskMatchesStatus = 
-        statusFilter === "all" || 
-        task.status === statusFilter ||
-        (statusFilter === "active" && (task.status === "open" || task.status === "in_progress"))
+      statusFilter === "all" || 
+      task.status === statusFilter ||
+      (statusFilter === "active" && (task.status === "open" || task.status === "in_progress"))
       const taskMatchesProfession = professionFilter === "all" || task.professions.includes(professionFilter)
-      
+
       const taskMatchesUserLevel =
-        !showOnlyAvailable ||
-        task.professions.every((prof: string) => {
-          const userLevel = userProfessions[prof]?.level || 0
-          const requiredLevel = task.levels[prof] || 0
-          return userLevel >= requiredLevel
-        }) ||
-        canDoAnySubtask(task.subtasks, task, userProfessions)
+      !showOnlyAvailable ||
+      task.professions.every((prof: string) => {
+        const userLevel = userProfessions[prof]?.level || 0
+        const requiredLevel = task.levels[prof] || 0
+        return userLevel >= requiredLevel
+      }) ||
+      canDoAnySubtask(task.subtasks, task, userProfessions)
 
       // Проверяем, есть ли подходящие подзадачи
       const hasMatchingSubtasksResult = hasMatchingSubtasks(task.subtasks, searchTerm, professionFilter, statusFilter, showOnlyAvailable)
@@ -593,7 +593,7 @@ export function TaskDashboard({
                       : !!task.assignedTo
 
                     return (
-                      <React.Fragment key={task.id || task._id}>
+                      <React.Fragment key={task.id || task._id}>  
                         <TableRow
                           className={cn(
                             "border-b",
@@ -814,16 +814,16 @@ export function TaskDashboard({
                                       {hasSubtasks && (
                                         <div>
                                           <h3 className="text-lg font-semibold mb-2">Subtasks</h3>
-                                          <SubtaskRenderer
-                                            subtasks={task.subtasks}
-                                            parentTask={task}
-                                            taskId={task._id || task.id}
-                                            userProfessions={userProfessions}
-                                            claimSubtask={handleClaimSubtask}
-                                            updateResourceContribution={updateResourceContribution}
-                                            showOnlyAvailable={showOnlyAvailable}
-                                            completeSubtask={completeSubtask}
-                                          />
+                                                                      <SubtaskRenderer
+                              subtasks={task.subtasks}
+                              parentTask={task}
+                              taskId={task._id || task.id}
+                              userProfessions={userProfessions}
+                              claimSubtask={handleClaimSubtask}
+                              updateResourceContribution={updateResourceContribution}
+                              showOnlyAvailable={showOnlyAvailable}
+                              completeSubtask={completeSubtask}
+                            />
                                         </div>
                                       )}
                                     </div>
@@ -864,18 +864,18 @@ export function TaskDashboard({
                                   <div>
                                     <h4 className="font-semibold mb-3 text-gray-700 flex items-center gap-2">
                                       <BarChart3 className="h-4 w-4" />
-                                      Subtasks ({availableSubtasks.length} available)
-                                    </h4>
-                                    <SubtaskRenderer
-                                      subtasks={availableSubtasks}
-                                      parentTask={task}
-                                      taskId={task._id || task.id}
-                                      userProfessions={userProfessions}
-                                      claimSubtask={handleClaimSubtask}
-                                      updateResourceContribution={updateResourceContribution}
-                                      showOnlyAvailable={showOnlyAvailable}
-                                      completeSubtask={completeSubtask}
-                                    />
+                                  Subtasks ({availableSubtasks.length} available)
+                                </h4>
+                                <SubtaskRenderer
+                                  subtasks={availableSubtasks}
+                                  parentTask={task}
+                                  taskId={task._id || task.id}
+                                  userProfessions={userProfessions}
+                                  claimSubtask={handleClaimSubtask}
+                                  updateResourceContribution={updateResourceContribution}
+                                  showOnlyAvailable={showOnlyAvailable}
+                                  completeSubtask={completeSubtask}
+                                />
                                   </div>
                                 )}
                               </div>
