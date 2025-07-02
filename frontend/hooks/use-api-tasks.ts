@@ -221,6 +221,28 @@ export function useApiTasks() {
     }
   }
 
+  // Завершение основной задачи
+  const completeTask = async (taskId: string) => {
+    try {
+      const response = await apiClient.completeTask(taskId)
+      
+      if (response.success) {
+        const normalizedTask = normalizeTask(response.data)
+        // Обновляем локальное состояние без полной перезагрузки
+        setTasks(prevTasks => 
+          prevTasks.map(task => 
+            (task._id === taskId || task.id?.toString() === taskId) ? normalizedTask : task
+          )
+        )
+        showSuccess("Task completed")
+      } else {
+        showError(response.message || "Failed to complete task")
+      }
+    } catch (err) {
+      showError("Error completing task")
+    }
+  }
+
   // Невидимое обновление конкретного таска в фоне
   const refreshTask = async (taskId: string) => {
     try {
@@ -291,6 +313,7 @@ export function useApiTasks() {
     deleteTask,
     updateResourceContribution,
     completeSubtask,
+    completeTask,
     refreshTask,
     updateTaskStatus,
     softRefresh,

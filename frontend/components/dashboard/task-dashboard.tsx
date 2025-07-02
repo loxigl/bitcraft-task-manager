@@ -39,6 +39,7 @@ import { professionIcons } from "@/lib/constants"
 import {
   canClaimTask,
   canDoAnySubtask,
+  canDoSubtask,
   isUserAssigned,
   getStatusColor,
   getPriorityColor,
@@ -62,6 +63,7 @@ interface TaskDashboardProps {
   setIsCreateTaskOpen: (open: boolean) => void
   onTaskUpdate?: () => void
   completeSubtask?: (taskId: string | number, subtaskId: number | string) => void
+  completeTask?: (taskId: string | number) => void
   refreshTasks?: () => void
 }
 
@@ -75,6 +77,7 @@ export function TaskDashboard({
   setIsCreateTaskOpen,
   onTaskUpdate,
   completeSubtask,
+  completeTask,
   refreshTasks,
 }: TaskDashboardProps) {
   const [searchTerm, setSearchTerm] = useState("")
@@ -83,6 +86,7 @@ export function TaskDashboard({
   const [showOnlyAvailable, setShowOnlyAvailable] = useState(false)
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" })
   const [expandedTasks, setExpandedTasks] = useState(new Set())
+  const [expandedResources, setExpandedResources] = useState(new Set())
   const [selectedTask, setSelectedTask] = useState(null)
   
   const { currentUser } = useUser()
@@ -104,27 +108,133 @@ export function TaskDashboard({
     setExpandedTasks(newExpanded)
   }
 
-  const filteredTasks = tasks.filter((task) => {
-    const matchesSearch = task.name.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = 
-      statusFilter === "all" || 
-      task.status === statusFilter ||
-      (statusFilter === "active" && (task.status === "open" || task.status === "in_progress"))
-    const matchesProfession = professionFilter === "all" || task.professions.includes(professionFilter)
+  const toggleResourceExpansion = (itemId: string) => {
+    const newExpanded = new Set(expandedResources)
+    if (newExpanded.has(itemId)) {
+      newExpanded.delete(itemId)
+    } else {
+      newExpanded.add(itemId)
+    }
+    setExpandedResources(newExpanded)
+  }
 
-    const matchesUserLevel =
-      !showOnlyAvailable ||
-      task.professions.every((prof: string) => {
-        const userLevel = userProfessions[prof]?.level || 0
-        const requiredLevel = task.levels[prof] || 0
-        return userLevel >= requiredLevel
-      }) ||
-      canDoAnySubtask(task.subtasks, task, userProfessions)
+  // Функция для получения всех элементов для отображения (задачи + подзадачи в плоской структуре при фильтрах)
+  const getAllDisplayItems = () => {
+    const items: any[] = []
+    
+    // Если есть поисковый запрос или фильтры (кроме default), включаем подзадачи в плоскую структуру
+    const shouldFlattenSubtasks = searchTerm.trim() !== "" || 
+                                 statusFilter !== "active" || 
+                                 professionFilter !== "all"
 
-    return matchesSearch && matchesStatus && matchesProfession && matchesUserLevel
-  })
+    // Функция для проверки соответствия задачи критериям поиска
+    const matchesSearchCriteria = (item: any, searchTerm: string) => {
+      if (searchTerm.trim() === "") return true
+      return item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()))
+    }
 
-  const sortedTasks = [...filteredTasks].sort((a, b) => {
+    // Функция для проверки наличия подзадач, соответствующих критериям
+    const hasMatchingSubtasks = (subtasks: any[], searchTerm: string, professionFilter: string, statusFilter: string, showOnlyAvailable: boolean) => {
+      if (!subtasks) return false
+      return subtasks.some(subtask => {
+        const subtaskMatchesSearch = matchesSearchCriteria(subtask, searchTerm)
+        const subtaskMatchesStatus = 
+          statusFilter === "all" || 
+          (subtask.status && subtask.status === statusFilter) ||
+          (statusFilter === "active" && (!subtask.status || subtask.status === "open" || subtask.status === "in_progress"))
+        const subtaskMatchesProfession = professionFilter === "all" || 
+                                       (subtask.professions && subtask.professions.includes(professionFilter))
+        const subtaskMatchesUserLevel = !showOnlyAvailable || 
+          canDoSubtask(subtask, tasks.find(t => t._id === subtask.parentTaskId || t.id === subtask.parentTaskId), userProfessions)
+
+        return (subtaskMatchesSearch && subtaskMatchesStatus && subtaskMatchesProfession && subtaskMatchesUserLevel) ||
+               (subtask.subtasks && hasMatchingSubtasks(subtask.subtasks, searchTerm, professionFilter, statusFilter, showOnlyAvailable))
+      })
+    }
+
+    tasks.forEach(task => {
+      const taskMatchesSearch = matchesSearchCriteria(task, searchTerm)
+      const taskMatchesStatus = 
+        statusFilter === "all" || 
+        task.status === statusFilter ||
+        (statusFilter === "active" && (task.status === "open" || task.status === "in_progress"))
+      const taskMatchesProfession = professionFilter === "all" || task.professions.includes(professionFilter)
+      
+      const taskMatchesUserLevel =
+        !showOnlyAvailable ||
+        task.professions.every((prof: string) => {
+          const userLevel = userProfessions[prof]?.level || 0
+          const requiredLevel = task.levels[prof] || 0
+          return userLevel >= requiredLevel
+        }) ||
+        canDoAnySubtask(task.subtasks, task, userProfessions)
+
+      // Проверяем, есть ли подходящие подзадачи
+      const hasMatchingSubtasksResult = hasMatchingSubtasks(task.subtasks, searchTerm, professionFilter, statusFilter, showOnlyAvailable)
+
+      // Добавляем основную задачу, если:
+      // 1. Нет активных фильтров/поиска И задача соответствует критериям
+      // 2. ИЛИ задача сама соответствует критериям 
+      // 3. ИЛИ у задачи есть подходящие подзадачи (и мы не в режиме плоской структуры)
+      const shouldIncludeMainTask = 
+        (!shouldFlattenSubtasks && taskMatchesSearch && taskMatchesStatus && taskMatchesProfession && taskMatchesUserLevel) ||
+        (shouldFlattenSubtasks && taskMatchesSearch && taskMatchesStatus && taskMatchesProfession && taskMatchesUserLevel) ||
+        (!shouldFlattenSubtasks && hasMatchingSubtasksResult && taskMatchesStatus && taskMatchesProfession && taskMatchesUserLevel)
+
+      if (shouldIncludeMainTask) {
+        items.push({
+          ...task,
+          isMainTask: true,
+          parentTaskId: null,
+          originalHierarchyInfo: null
+        })
+      }
+
+      // Если нужно выравнивать подзадачи, добавляем подходящие подзадачи
+      if (shouldFlattenSubtasks && task.subtasks) {
+        const addMatchingSubtasks = (subtasks: any[], parentTask: any, parentSubtaskName?: string) => {
+          subtasks.forEach(subtask => {
+            const subtaskMatchesSearch = matchesSearchCriteria(subtask, searchTerm)
+            const subtaskMatchesStatus = 
+              statusFilter === "all" || 
+              (subtask.status && subtask.status === statusFilter) ||
+              (statusFilter === "active" && (!subtask.status || subtask.status === "open" || subtask.status === "in_progress"))
+            const subtaskMatchesProfession = professionFilter === "all" || 
+                                           (subtask.professions && subtask.professions.includes(professionFilter))
+
+            const subtaskMatchesUserLevel = !showOnlyAvailable || 
+              canDoSubtask(subtask, parentTask, userProfessions)
+
+            if (subtaskMatchesSearch && subtaskMatchesStatus && subtaskMatchesProfession && subtaskMatchesUserLevel) {
+              items.push({
+                ...subtask,
+                isMainTask: false,
+                parentTaskId: parentTask._id || parentTask.id,
+                parentTaskName: parentTask.name,
+                originalHierarchyInfo: parentSubtaskName ? `${parentTask.name} > ${parentSubtaskName}` : parentTask.name,
+                // Добавляем информацию о родительской задаче для ресурсов
+                parentTask: parentTask
+              })
+            }
+
+            // Рекурсивно обрабатываем вложенные подзадачи
+            if (subtask.subtasks) {
+              addMatchingSubtasks(subtask.subtasks, parentTask, subtask.name)
+            }
+          })
+        }
+        
+        addMatchingSubtasks(task.subtasks, task)
+      }
+    })
+
+    return items
+  }
+
+  const filteredItems = getAllDisplayItems()
+
+  const sortedTasks = [...filteredItems].sort((a, b) => {
     if (!sortConfig.key) return 0
 
     let aValue = a[sortConfig.key]
@@ -263,7 +373,7 @@ export function TaskDashboard({
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Available Tasks</CardTitle>
-                <CardDescription>{sortedTasks.length} tasks found</CardDescription>
+                <CardDescription>{sortedTasks.length} items found</CardDescription>
               </div>
               {refreshTasks && (
                 <Button 
@@ -317,7 +427,162 @@ export function TaskDashboard({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sortedTasks.map((task) => {
+                  {sortedTasks.map((item) => {
+                    const isMainTask = item.isMainTask !== false // по умолчанию true для старых элементов
+                    
+                    // Если это подзадача в плоской структуре
+                    if (!isMainTask) {
+                      const parentTask = item.parentTask
+                      const subtask = item
+                      const canDoTask = canDoSubtask(subtask, parentTask, userProfessions)
+                      const userAssignedToTask = isUserAssigned(subtask.assignedTo, currentUserName)
+                      
+                                            return (
+                        <React.Fragment key={`subtask-${parentTask._id || parentTask.id}-${subtask.id}`}>
+                          <TableRow>
+                            <TableCell>
+                              {subtask.resources && subtask.resources.length > 0 && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => toggleResourceExpansion(`subtask-${parentTask._id || parentTask.id}-${subtask.id}`)}
+                                  className="h-6 w-6 p-0"
+                                >
+                                  {expandedResources.has(`subtask-${parentTask._id || parentTask.id}-${subtask.id}`) ? (
+                                    <ChevronDown className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <div className="font-medium flex items-center gap-2">
+                                  <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
+                                    Subtask
+                                  </Badge>
+                                  {subtask.name}
+                                  {userAssignedToTask && (
+                                    <Badge variant="outline" className="text-blue-600 bg-blue-50 text-xs">
+                                      <User className="h-3 w-3 mr-1" />
+                                      You
+                                    </Badge>
+                                  )}
+                                  {subtask.resources && subtask.resources.length > 0 && (
+                                    <Badge variant="outline" className="text-xs text-orange-600 bg-orange-50">
+                                      <Package className="h-3 w-3 mr-1" />
+                                      {subtask.resources.length} Resources
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="text-sm text-gray-500 truncate max-w-xs">{subtask.description}</div>
+                                <div className="text-xs text-blue-600 mt-1">
+                                  Parent task: {item.originalHierarchyInfo}
+                                </div>
+                                {subtask.assignedTo && (
+                                  <div className="text-xs text-blue-600 mt-1">
+                                    Assigned to:{" "}
+                                    {Array.isArray(subtask.assignedTo) ? subtask.assignedTo.join(", ") : subtask.assignedTo}
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-1 flex-wrap">
+                                {(subtask.professions || []).map((prof: string) => {
+                                  const Icon = professionIcons[prof as keyof typeof professionIcons]
+                                  const userLevel = userProfessions[prof]?.level || 0
+                                  const requiredLevel = subtask.levels?.[prof] || 0
+                                  const canDo = userLevel >= requiredLevel
+                                  if (!Icon) return null
+                                  return (
+                                    <div
+                                      key={prof}
+                                      className={cn(
+                                        "flex items-center gap-1 rounded px-2 py-1",
+                                        canDo ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800",
+                                      )}
+                                    >
+                                      <Icon className="h-3 w-3" />
+                                      <span className="text-xs">{requiredLevel}</span>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1 text-sm">
+                                <Clock className="h-3 w-3" />
+                                {format(new Date(parentTask.deadline), "MMM dd")}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className={cn(getStatusColor(subtask.status || 'open'))}>{subtask.status || 'open'}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={getPriorityColor(parentTask.priority)}>
+                                {parentTask.priority}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-1">
+                                {canDoTask ? (
+                                  <Button
+                                    variant={userAssignedToTask ? "secondary" : "default"}
+                                    size="sm"
+                                    onClick={() => handleClaimSubtask(parentTask._id || parentTask.id, subtask.id)}
+                                    className="text-xs"
+                                  >
+                                    {userAssignedToTask ? (
+                                      <>
+                                        <UserMinus className="h-3 w-3 mr-1" />
+                                        Leave
+                                      </>
+                                    ) : (
+                                      <>
+                                        <UserPlus className="h-3 w-3 mr-1" />
+                                        Claim
+                                      </>
+                                    )}
+                                  </Button>
+                                ) : (
+                                  <div className="text-xs text-gray-500 px-2">Can't claim</div>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+
+                          {/* Отдельная строка для ресурсов подзадачи */}
+                          {subtask.resources && subtask.resources.length > 0 && expandedResources.has(`subtask-${parentTask._id || parentTask.id}-${subtask.id}`) && (
+                            <TableRow>
+                              <TableCell colSpan={7} className="bg-orange-50 border-l-4 border-orange-200 p-0">
+                                <div className="p-4">
+                                  <h5 className="font-medium mb-3 text-orange-800 flex items-center gap-2">
+                                    <Package className="h-4 w-4" />
+                                    Subtask Resources ({subtask.resources.length})
+                                  </h5>
+                                  <div className="bg-white rounded border p-3">
+                                    <ResourceTracker
+                                      resources={subtask.resources}
+                                      taskId={parentTask._id || parentTask.id}
+                                      subtaskId={subtask.id}
+                                      canEdit={userAssignedToTask}
+                                      title=""
+                                      updateResourceContribution={updateResourceContribution}
+                                      onCompleteSubtask={completeSubtask}
+                                    />
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </React.Fragment>
+                      )
+                    }
+
+                    // Для основных задач
+                    const task = item
                     const availableSubtasks = getAvailableSubtasks(task)
                     const isExpanded = expandedTasks.has(task.id)
                     const hasSubtasks = task.subtasks && task.subtasks.length > 0
@@ -328,7 +593,7 @@ export function TaskDashboard({
                       : !!task.assignedTo
 
                     return (
-                      <React.Fragment key={task.id || task._id}>  
+                      <React.Fragment key={task.id || task._id}>
                         <TableRow
                           className={cn(
                             "border-b",
@@ -541,6 +806,7 @@ export function TaskDashboard({
                                             canEdit={userAssignedToTask}
                                             title=""
                                             updateResourceContribution={updateResourceContribution}
+                                            onCompleteTask={completeTask}
                                           />
                                         </div>
                                       )}
@@ -548,16 +814,16 @@ export function TaskDashboard({
                                       {hasSubtasks && (
                                         <div>
                                           <h3 className="text-lg font-semibold mb-2">Subtasks</h3>
-                                                                      <SubtaskRenderer
-                              subtasks={task.subtasks}
-                              parentTask={task}
-                              taskId={task._id || task.id}
-                              userProfessions={userProfessions}
-                              claimSubtask={handleClaimSubtask}
-                              updateResourceContribution={updateResourceContribution}
-                              showOnlyAvailable={showOnlyAvailable}
-                              completeSubtask={completeSubtask}
-                            />
+                                          <SubtaskRenderer
+                                            subtasks={task.subtasks}
+                                            parentTask={task}
+                                            taskId={task._id || task.id}
+                                            userProfessions={userProfessions}
+                                            claimSubtask={handleClaimSubtask}
+                                            updateResourceContribution={updateResourceContribution}
+                                            showOnlyAvailable={showOnlyAvailable}
+                                            completeSubtask={completeSubtask}
+                                          />
                                         </div>
                                       )}
                                     </div>
@@ -568,23 +834,50 @@ export function TaskDashboard({
                           </TableCell>
                         </TableRow>
 
-                        {isExpanded && hasSubtasks && (
+                        {isExpanded && (task.resources?.length > 0 || hasSubtasks) && (
                           <TableRow>
                             <TableCell colSpan={7} className="bg-gray-50 p-0">
-                              <div className="p-4">
-                                <h4 className="font-semibold mb-3 text-gray-700">
-                                  Subtasks ({availableSubtasks.length} available)
-                                </h4>
-                                <SubtaskRenderer
-                                  subtasks={availableSubtasks}
-                                  parentTask={task}
-                                  taskId={task._id || task.id}
-                                  userProfessions={userProfessions}
-                                  claimSubtask={handleClaimSubtask}
-                                  updateResourceContribution={updateResourceContribution}
-                                  showOnlyAvailable={showOnlyAvailable}
-                                  completeSubtask={completeSubtask}
-                                />
+                              <div className="p-4 space-y-4">
+                                {/* Блок ресурсов */}
+                                {task.resources && task.resources.length > 0 && (
+                                  <div>
+                                    <h4 className="font-semibold mb-3 text-gray-700 flex items-center gap-2">
+                                      <Package className="h-4 w-4" />
+                                      Resources Required ({task.resources.length})
+                                    </h4>
+                                    <div className="bg-white rounded border p-3">
+                                      <ResourceTracker
+                                        resources={task.resources}
+                                        taskId={task._id || task.id}
+                                        subtaskId={null}
+                                        canEdit={userAssignedToTask}
+                                        title=""
+                                        updateResourceContribution={updateResourceContribution}
+                                        onCompleteTask={completeTask}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Блок подзадач */}
+                                {hasSubtasks && (
+                                  <div>
+                                    <h4 className="font-semibold mb-3 text-gray-700 flex items-center gap-2">
+                                      <BarChart3 className="h-4 w-4" />
+                                      Subtasks ({availableSubtasks.length} available)
+                                    </h4>
+                                    <SubtaskRenderer
+                                      subtasks={availableSubtasks}
+                                      parentTask={task}
+                                      taskId={task._id || task.id}
+                                      userProfessions={userProfessions}
+                                      claimSubtask={handleClaimSubtask}
+                                      updateResourceContribution={updateResourceContribution}
+                                      showOnlyAvailable={showOnlyAvailable}
+                                      completeSubtask={completeSubtask}
+                                    />
+                                  </div>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>

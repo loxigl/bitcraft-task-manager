@@ -450,6 +450,17 @@ export class TaskController {
 
       let completedSubtask: any = null;
 
+      // Функция для каскадного завершения дочерних подзадач
+      const completeAllChildSubtasks = (subtasks: any[]) => {
+        if (!subtasks) return;
+        subtasks.forEach(subtask => {
+          subtask.completed = true;
+          if (subtask.subtasks) {
+            completeAllChildSubtasks(subtask.subtasks);
+          }
+        });
+      };
+
       // Рекурсивно ищем подзадачу и отмечаем как завершенную
       const findAndCompleteSubtask = (subtasks: any[]): boolean => {
         for (const subtask of subtasks) {
@@ -462,6 +473,12 @@ export class TaskController {
             }
             subtask.completed = true;
             completedSubtask = subtask;
+            
+            // Каскадно завершаем все дочерние подзадачи
+            if (subtask.subtasks) {
+              completeAllChildSubtasks(subtask.subtasks);
+            }
+            
             return true;
           }
           
@@ -616,6 +633,21 @@ export class TaskController {
 
       // Отмечаем задачу как завершенную
       task.status = TaskStatus.COMPLETED;
+
+      // Каскадно завершаем все подзадачи
+      const completeAllSubtasks = (subtasks: any[]) => {
+        if (!subtasks) return;
+        subtasks.forEach(subtask => {
+          subtask.completed = true;
+          if (subtask.subtasks) {
+            completeAllSubtasks(subtask.subtasks);
+          }
+        });
+      };
+
+      if (task.subtasks) {
+        completeAllSubtasks(task.subtasks);
+      }
 
       // Начисляем репутацию участникам
       if (task.assignedTo && task.assignedTo.length > 0) {

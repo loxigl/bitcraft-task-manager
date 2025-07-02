@@ -65,6 +65,7 @@ export default function GuildCraftingDashboard() {
     deleteTask: apiDeleteTask,
     updateResourceContribution: apiUpdateResource,
     completeSubtask: apiCompleteSubtask,
+    completeTask: apiCompleteTask,
     refreshTask,
     updateTaskStatus: apiUpdateTaskStatus,
     softRefresh
@@ -154,6 +155,12 @@ export default function GuildCraftingDashboard() {
     const subtaskIdStr = typeof subtaskId === 'string' ? subtaskId : subtaskId.toString()
     // apiCompleteSubtask уже обновляет локальное состояние - никаких дополнительных перезагрузок не нужно
     await apiCompleteSubtask(taskIdStr, subtaskIdStr)
+  }
+
+  const completeTask = async (taskId: number | string) => {
+    const taskIdStr = typeof taskId === 'string' ? taskId : taskId.toString()
+    // apiCompleteTask уже обновляет локальное состояние - никаких дополнительных перезагрузок не нужно
+    await apiCompleteTask(taskIdStr)
   }
 
   const deleteTask = (taskId: number | string) => {
@@ -279,6 +286,7 @@ export default function GuildCraftingDashboard() {
                     // Локальное состояние уже обновляется в API функциях
                   }}
                   completeSubtask={completeSubtask}
+                  completeTask={completeTask}
                   refreshTasks={softRefresh}
                 />
               </TabsContent>
@@ -308,6 +316,7 @@ export default function GuildCraftingDashboard() {
                     // Локальное состояние уже обновляется в API функциях
                   }}
                   completeSubtask={completeSubtask}
+                  completeTask={completeTask}
                   refreshTasks={softRefresh}
                 />
               </TabsContent>
